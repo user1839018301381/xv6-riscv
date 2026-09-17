@@ -1,0 +1,60 @@
+---
+import { getCollection, render } from 'astro:content';
+import ArticleToc from '../../components/ArticleToc.astro';
+import NavigationRail from '../../components/NavigationRail.astro';
+import SourceMeta from '../../components/SourceMeta.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { chapterPath } from '../../../scripts/lib/config.ts';
+
+export async function getStaticPaths() {
+  const chapters = (await getCollection('book')).sort((a, b) => a.data.chapter - b.data.chapter);
+  const chaptersJa = (await getCollection('bookJa')).sort((a, b) => a.data.chapter - b.data.chapter);
+  return chaptersJa.map((entry, index) => ({
+    params: { chapter: `chapter-${entry.data.chapter}` },
+    props: { entry, chapters, chaptersJa, index }
+  }));
+}
+
+const { entry, chapters, chaptersJa, index } = Astro.props;
+const { Content, headings } = await render(entry);
+const outline = headings
+  .filter((heading) => heading.depth === 2 || heading.depth === 3)
+  .map((heading) => ({ depth: heading.depth, id: heading.slug, text: heading.text }));
+const railItems = chapters.map((chapter) => ({
+  href: chapterPath(chapter.data.chapter),
+  label: chapter.data.title,
+  number: String(chapter.data.chapter).padStart(2, '0')
+}));
+const previous = index > 0 ? chaptersJa[index - 1] : undefined;
+const next = index < chaptersJa.length - 1 ? chaptersJa[index + 1] : undefined;
+const repository = 'https://github.com/mit-pdos/xv6-riscv-book';
+---
+
+<BaseLayout title={entry.data.title} description={`Chapter ${entry.data.chapter} of the official xv6 book.`}>
+  <div class="reader-grid reader-grid--book">
+    <NavigationRail title="Book chapters" items={railItems} activeHref={chapterPath(entry.data.chapter)} />
+
+    <article class="reader-main">
+      <header class="article-header">
+        <p class="article-kicker">Chapter {String(entry.data.chapter).padStart(2, '0')}</p>
+        <h1>{entry.data.title}</h1>
+        <p>xv6: a simple, Unix-like teaching operating system</p>
+      </header>
+
+      <details class="mobile-chapter-nav">
+        <summary>Book chapters</summary>
+        <ol>{railItems.map((item) => <li><a href={item.href} aria-current={item.href === chapterPath(entry.data.chapter) ? 'page' : undefined}><span>{item.number}</span><span>{item.label}</span></a></li>)}</ol>
+      </details>
+      <ArticleToc items={outline} />
+      <div class="prose"><Content /></div>
+      <SourceMeta source="mit-pdos/xv6-riscv-book" sourceUrl={`${repository}/tree/${entry.data.commit}`} commit={entry.data.commit} />
+
+      <nav class="page-turner" aria-label="Adjacent chapters">
+        <span>{previous && <a href={chapterPath(previous.data.chapter)}><span>Previous chapter</span><strong>{previous.data.title}</strong></a>}</span>
+        <span>{next && <a href={chapterPath(next.data.chapter)}><span>Next chapter</span><strong>{next.data.title}</strong></a>}</span>
+      </nav>
+    </article>
+
+    <div class="reader-toc-column"><ArticleToc items={outline} /></div>
+  </div>
+</BaseLayout>

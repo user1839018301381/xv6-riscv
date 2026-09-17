@@ -4,8 +4,8 @@ ENTRY( _entry )
 SECTIONS
 {
   /*
-   * ensure that entry.S / _entry is at 0x80000000,
-   * where qemu's -kernel jumps.
+   * entry.S / _entryが、qemuの-kernelがジャンプする
+   * 0x80000000にあることを保証する。
    */
   . = 0x80000000;
 
@@ -22,21 +22,21 @@ SECTIONS
 
   .rodata : {
     . = ALIGN(16);
-    *(.srodata .srodata.*) /* do not need to distinguish this from .rodata */
+    *(.srodata .srodata.*) /* .rodataと区別する必要はない */
     . = ALIGN(16);
     *(.rodata .rodata.*)
   }
 
   .data : {
     . = ALIGN(16);
-    *(.sdata .sdata.*) /* do not need to distinguish this from .data */
+    *(.sdata .sdata.*) /* .dataと区別する必要はない */
     . = ALIGN(16);
     *(.data .data.*)
   }
 
   .bss : {
     . = ALIGN(16);
-    *(.sbss .sbss.*) /* do not need to distinguish this from .bss */
+    *(.sbss .sbss.*) /* .bssと区別する必要はない */
     . = ALIGN(16);
     *(.bss .bss.*)
   }

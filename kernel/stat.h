@@ -1,11 +1,11 @@
-#define T_DIR    1 // Directory
-#define T_FILE   2 // File
-#define T_DEVICE 3 // Device
+#define T_DIR    1 // ディレクトリ
+#define T_FILE   2 // ファイル
+#define T_DEVICE 3 // デバイス
 
 struct stat {
-  int dev;     // File system's disk device
-  uint ino;    // Inode number
-  short type;  // Type of file
-  short nlink; // Number of links to file
-  uint64 size; // Size of file in bytes
+    int dev;     // ファイルシステムのディスクデバイス
+    uint ino;    // inode番号
+    short type;  // ファイル種別
+    short nlink; // ファイルへのリンク数
+    uint64 size; // ファイルサイズ（バイト）
 };

@@ -1,0 +1,140 @@
+/* Hallmark · macrostructure: Long Document · theme: studied-DNA (source: ../sudoku/design.md) · nav: N9 + search · enrichment: none */
+:root {
+  color-scheme: light dark;
+  --color-paper: oklch(98% 0.006 286);
+  --color-paper-2: oklch(96% 0.009 286);
+  --color-paper-3: oklch(92% 0.014 286);
+  --color-ink: oklch(17% 0.014 282);
+  --color-ink-2: oklch(29% 0.018 282);
+  --color-muted: oklch(38% 0.018 282);
+  --color-rule: oklch(78% 0.018 282);
+  --color-rule-strong: oklch(31% 0.035 282);
+  --color-accent: oklch(47% 0.17 282);
+  --color-accent-soft: oklch(92% 0.045 282);
+  --color-accent-ink: oklch(98% 0.006 286);
+  --color-focus: oklch(42% 0.19 282);
+  --color-code: oklch(14% 0.018 282);
+  --color-code-ink: oklch(94% 0.009 286);
+  --color-error: oklch(45% 0.19 25);
+  --color-success: oklch(42% 0.12 145);
+  --color-overlay: oklch(10% 0.014 282 / 0.72);
+  --color-shadow: oklch(26% 0.045 282 / 0.24);
+  --color-syntax-keyword: oklch(47% 0.17 278);
+  --color-syntax-string: oklch(44% 0.12 155);
+  --color-syntax-number: oklch(48% 0.16 48);
+  --color-syntax-comment: oklch(53% 0.025 245);
+  --color-syntax-title: oklch(43% 0.14 235);
+  --color-syntax-meta: oklch(50% 0.14 320);
+
+  --font-display: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif, "Segoe UI Emoji";
+  --font-body: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif, "Segoe UI Emoji";
+  --font-code: "Geist Mono Variable", ui-monospace, monospace;
+
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+  --page-gutter: clamp(0.75rem, 4vw, 3rem);
+  --content-max: 90rem;
+  --prose-max: 40em;
+  --control-height: 2.75rem;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1.125rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.625rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.5rem;
+  --text-display: clamp(2rem, 1.5vw + 1rem, 2.5rem);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 100ms;
+  --dur-short: 180ms;
+  --dur-long: 300ms;
+
+  --rule-thin: 1px;
+  --rule-strong: 2px;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-pill: 999px;
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-paper: #0d0f14;
+  --color-paper-2: #151820;
+  --color-paper-3: #1d212b;
+  --color-ink: #d4d7df;
+  --color-ink-2: #c3c8d2;
+  --color-muted: #9aa1ae;
+  --color-rule: #292e39;
+  --color-rule-strong: #434a59;
+  --color-accent: #9aa7ff;
+  --color-accent-soft: #252b4a;
+  --color-accent-ink: #0d0f14;
+  --color-focus: #bdc5ff;
+  --color-code: #090b0f;
+  --color-code-ink: #d4d7df;
+  --color-error: oklch(86% 0.08 25);
+  --color-success: oklch(78% 0.11 145);
+  --color-overlay: oklch(4% 0.01 286 / 0.86);
+  --color-shadow: oklch(3% 0.008 286 / 0.58);
+  --color-syntax-keyword: oklch(76% 0.13 292);
+  --color-syntax-string: oklch(77% 0.11 155);
+  --color-syntax-number: oklch(79% 0.12 65);
+  --color-syntax-comment: oklch(63% 0.025 245);
+  --color-syntax-title: oklch(76% 0.11 228);
+  --color-syntax-meta: oklch(76% 0.1 325);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-paper: #0d0f14;
+    --color-paper-2: #151820;
+    --color-paper-3: #1d212b;
+    --color-ink: #d4d7df;
+    --color-ink-2: #c3c8d2;
+    --color-muted: #9aa1ae;
+    --color-rule: #292e39;
+    --color-rule-strong: #434a59;
+    --color-accent: #9aa7ff;
+    --color-accent-soft: #252b4a;
+    --color-accent-ink: #0d0f14;
+    --color-focus: #bdc5ff;
+    --color-code: #090b0f;
+    --color-code-ink: #d4d7df;
+    --color-error: oklch(86% 0.08 25);
+    --color-success: oklch(78% 0.11 145);
+    --color-overlay: oklch(4% 0.01 286 / 0.86);
+    --color-shadow: oklch(3% 0.008 286 / 0.58);
+    --color-syntax-keyword: oklch(76% 0.13 292);
+    --color-syntax-string: oklch(77% 0.11 155);
+    --color-syntax-number: oklch(79% 0.12 65);
+    --color-syntax-comment: oklch(63% 0.025 245);
+    --color-syntax-title: oklch(76% 0.11 228);
+    --color-syntax-meta: oklch(76% 0.1 325);
+  }
+}

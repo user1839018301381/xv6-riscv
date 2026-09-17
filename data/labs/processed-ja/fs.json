@@ -1,0 +1,103 @@
+{
+  "slug": "fs",
+  "title": "ラボ: ファイル システム",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/fs.html",
+  "fetchedAt": "2026-09-17T03:57:34.541Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "large-files",
+      "text": "大きなファイル",
+      "number": "01"
+    },
+    {
+      "depth": 3,
+      "id": "preliminaries",
+      "text": "予選",
+      "number": "01.1"
+    },
+    {
+      "depth": 3,
+      "id": "what-to-look-at",
+      "text": "何を見るべきか",
+      "number": "01.2"
+    },
+    {
+      "depth": 3,
+      "id": "your-job",
+      "text": "あなたの仕事",
+      "number": "01.3"
+    },
+    {
+      "depth": 2,
+      "id": "symbolic-links",
+      "text": "シンボリックリンク",
+      "number": "02"
+    },
+    {
+      "depth": 3,
+      "id": "your-job-2",
+      "text": "あなたの仕事",
+      "number": "02.1"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "ラボを送信する",
+      "number": "03"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "費やした時間",
+      "number": "03.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "答え",
+      "number": "03.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "送信する",
+      "number": "03.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercises",
+      "text": "オプションのチャレンジ演習",
+      "number": "04"
+    },
+    {
+      "depth": 3,
+      "id": "acknowledgment",
+      "text": "謝辞",
+      "number": "04.1"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-file-system\">ラボ: ファイル システム</h1>\n\n<p>このラボでは、大きなファイルとシンボリック リンクを xv6 に追加します。 \nファイルシステム。\n\n</p><div class=\"lab-prereq\">\n<p>コードを記述する前に、「第 10 章:\n ファイルシステム」から <a href=\"/book/chapter-10/\" class=\"book-link\">xv6\n 本</a> 対応するコードを調べてください。\n</p></div>\n\n<p>ラボ用の xv6 ソースを取得し、 <tt>util</tt> 支店:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ git fetch\n  $ git checkout fs\n  $ make clean</code></pre>\n\n<h2 id=\"large-files\" data-section-number=\"01\">大きなファイル </h2>\n\n<p>この課題では、xv6 の最大サイズを増やします。\nファイル。現在、xv6 ファイルは 268 ブロック、つまり 268*BSIZE に制限されています。\nバイト (BSIZE は xv6 では 1024)。この制限は、\nxv6 i ノードには 12 個の「直接」ブロック番号と 1 個の「単一間接」ブロック番号が含まれています\nブロック番号。さらに最大 256 個のブロックを保持するブロックを指します。 \n合計 12+256=268 ブロックになります。\n\n</p><p>の <tt>bigfile</tt> コマンドは可能な限り長いファイルを作成します。\nそしてそのサイズを報告します:\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ bigfile\n..\nwrote 268 blocks\nbigfile: file is too small\n$</code></pre>\nテストが失敗する理由は、 <tt>bigfile</tt> できると期待している\n65803 ブロックのファイルを作成しますが、xv6 の制限は変更されていません\nファイルは 268 ブロックまで。\n\n<p>xv6 ファイル システム コードを変更して、\n各 i ノードの「二重間接」ブロックには、256 個のアドレスが含まれます。\n単一間接ブロック。各ブロックには最大 256 個のアドレスを含めることができます\nデータブロックの数。その結果、ファイルを構成できるようになります。\n最大 65803 ブロック、つまり 256*256+256+11 ブロック (12 ではなく 11)\n二重間接のために直接ブロック番号の 1 つを犠牲にする\nブロック）。\n\n</p><h3 id=\"preliminaries\" data-section-number=\"01.1\">予選</h3>\n\nの <tt>mkfs</tt> プログラムは xv6 ファイル システム ディスク イメージを作成します\nそして決定します\nファイルシステムにある合計ブロック数。このサイズはによって制御されます\n<tt>FSSIZE</tt> で <tt>kernel/param.h</tt>。\nそれはわかりますね <tt>FSSIZE</tt> リポジトリ内\nこのラボは次のように設定されています\n200,000ブロック。 次の出力が表示されるはずです。 <tt>mkfs/mkfs</tt>\nmake の出力では次のようになります。\n<pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">nmeta 71 (boot, super, log blocks 31, inode blocks 13, bitmap blocks 25) blocks 199929 total 200000</code></pre>\nこの行は、ファイル システムについて説明します。 <tt>mkfs/mkfs</tt> 建てられた：それ\n71 個のメタデータ ブロック (ファイル システムを記述するために使用されるブロック) があり、\n199,929 データ ブロック、合計 200,000 ブロック。\n<br>\n\n<p>注意してください <tt>make qemu</tt> 新しいものを構築します <tt>fs.img</tt>、そして\n古いものを保存します <tt>fs.img.bk</tt>。 xv6 を実行したい場合は、\n既存の <tt>fs.img</tt> 新しいものを構築するのではなく、\n走る <tt>make qemu-fs</tt>。\n\n</p><h3 id=\"what-to-look-at\" data-section-number=\"01.2\">何を見るべきか</h3>\n\nディスク上の i ノードの形式は次のように定義されます。 <tt>struct dinode</tt>\nで <tt>fs.h</tt>。特に興味があるのは、 <tt>NDIRECT</tt>、\n<tt>NINDIRECT</tt>、 <tt>MAXFILE</tt>、そして <tt>addrs[]</tt> 要素\nの <tt>struct dinode</tt>。 xv6 テキストの図 10.3 を参照してください。\n標準の xv6 i ノードの図。\n\n<p>\nディスク上のファイルのデータを検索するコードは次のとおりです。 <tt>bmap()</tt>\nで <tt>fs.c</tt>。それを見て理解してください\nそれは何をしているのでしょう。 <tt>bmap()</tt> は読み取り時と\nファイルを書き込んでいます。書くときは、 <tt>bmap()</tt> 新しいものを割り当てます\nファイルのコンテンツを保持するために必要なブロック、および割り当て\nブロックアドレスを保持するために必要な場合は間接ブロック。\n\n</p><p>\n<tt>bmap()</tt> 2種類のブロック番号を扱います。の <tt>bn</tt>\n引数は「論理ブロック番号」、つまりファイル内のブロック番号です。\n開始点に対して\nファイルの。のブロック番号は、 <tt>ip-&gt;addrs[]</tt>、そして\nに対する議論 <tt>bread()</tt>、はディスクのブロック番号です。\n閲覧できます <tt>bmap()</tt> ファイルの論理マッピングとして\nブロック番号をディスクのブロック番号に変換します。\n\n</p><h3 id=\"your-job\" data-section-number=\"01.3\">あなたの仕事</h3>\n\n<div class=\"lab-required\">\n変更 <tt>bmap()</tt> 二重間接ブロックを実装するため、\n直接ブロックと単一間接ブロックに加えて。 持っています\n直接ブロックを 12 個ではなく 11 個だけにして、\n新しい二重間接ブロック。サイズを変更することはできません\nディスク上の i ノード。 最初の 11 要素 <tt>ip-&gt;addrs[]</tt> すべきです\n直接ブロックであること。 12 番目は単一間接ブロックである必要があります (単に\n現在のものと同様）; 13 日が新しい二重間接的なものになるはずです\nブロック。この演習は次の時点で完了します。 <tt>bigfile</tt> 書きます\n65803ブロックと <tt>usertests -q</tt> 正常に実行されます:\n</div>\n\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ bigfile\n..................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................\nwrote 65803 blocks\n<span class=\"hljs-keyword\">done</span>; ok\n$ usertests -q\n...\nALL TESTS PASSED\n$ </code></pre>\n\n<p>\n<tt>bigfile</tt> 実行には少なくとも 1 分半かかります。\n\n</p><p>ヒント:\n\n</p><ul>\n    \n<li> 必ず理解してください <tt>bmap()</tt>。の図を書き出す\n間の関係 <tt>ip-&gt;addrs[]</tt>、間接ブロック、\n二重間接ブロックとそれが指す単一間接ブロック、および\nデータブロック。二重間接を追加する理由を必ず理解してください。\nblock は、最大ファイル サイズを 256*256 ブロック (実際には -1、\n直接ブロックの数を 1 つ減らす必要があるため)。\n\n</li><li>\n二重間接ブロックにインデックスを付ける方法を考えてください。\nそれが指す間接ブロックと論理ブロック\n番号。\n\n</li><li>の定義を変更すると、 <tt>NDIRECT</tt>、あなたはそうします\nおそらく宣言を変更する必要があります <tt>addrs[]</tt>\nで <tt>struct inode</tt> で <tt>file.h</tt>。それを確認してください\n<tt>struct inode</tt> そして <tt>struct dinode</tt> 持っています\n同じ数の要素 <tt>addrs[]</tt> 配列。\n\n</li><li>の定義を変更すると、 <tt>NDIRECT</tt>を作成してください。\n新しい <tt>fs.img</tt>、以来 <tt>mkfs</tt> 用途 <tt>NDIRECT</tt> を構築する\nファイルシステム。  \n\n</li><li>ファイル システムがクラッシュなどにより悪い状態になった場合、\n削除する <tt>fs.img</tt> (これは xv6 ではなく Unix から実行してください)。  <tt>make</tt> を構築します\n新しいクリーンなファイル システム イメージを提供します。\n\n</li><li>忘れずに <tt>brelse()</tt> あなたが作った各ブロック\n<tt>bread()</tt>。\n\n</li><li>間接ブロックと二重間接ブロックを割り当てる必要があります。 \nオリジナルと同様に、必要な場合にのみブロックします <tt>bmap()</tt>。\n\n</li><li>必ず確認してください <tt>itrunc</tt> ファイルのすべてのブロックを解放します。 \n二重間接ブロック。\n\n</li><li><tt>usertests</tt> 以前のラボよりも実行に時間がかかります\n なぜならこの研究室のために <tt>FSSIZE</tt> より大きく、大きなファイルは\n もっと大きい。\n\n</li></ul>\n\n\n<h2 id=\"symbolic-links\" data-section-number=\"02\">シンボリックリンク </h2>\n\n<p>この演習では、xv6 にシンボリック リンクを追加します。 象徴的な\nリンク (またはソフト リンク) は、リンクされたファイルまたはディレクトリを指します。\nパス名によって;いつ\nシンボリック リンクが開かれると、カーネルはリンク先の名前を検索します。\nシンボリック リンクはハード リンクに似ていますが、ハード リンクは\n同じディスク上のファイルを指すように制限されます。\nディレクトリを参照できません。\nそして、(のように) ではなく、特定のターゲット i ノードに結び付けられます。\nシンボリックリンク) 現時点で起こっていることを指します\nどちらかといえば、ターゲット名にあること。\nこのシステム コールの実装は、次のことを行うための良い練習になります。\nパス名の検索がどのように機能するかを理解します。\n\n</p><p>このためにディレクトリへのシンボリック リンクを処理する必要はありません。\n研究室;従う方法を知る必要がある唯一のシステムコール\nシンボリックリンクは <tt>open()</tt>。\n\n</p><h3 id=\"your-job-2\" data-section-number=\"02.1\">あなたの仕事</h3>\n\n<div class=\"lab-required\">\n<p>あなたが実装するのは、 <tt>symlink(char *target, char *path)</tt>\nシステムコール。参照するパスに新しいシンボリックリンクを作成します。\nターゲットによって指定されたファイルに。詳細については、マニュアルページを参照してください\nシンボリックリンク。 テストするには、symlinktest を Makefile に追加して実行します。あなたの\nテストで次の出力が生成されると、ソリューションは完了です。\n(成功したユーザーテストを含む)。\n</p></div>\n\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ symlinktest\nStart: <span class=\"hljs-built_in\">test</span> symlinks\n<span class=\"hljs-built_in\">test</span> symlinks: ok\nStart: <span class=\"hljs-built_in\">test</span> concurrent symlinks\n<span class=\"hljs-built_in\">test</span> concurrent symlinks: ok\n$ usertests -q\n...\nALL TESTS PASSED\n$ </code></pre>\n \n<p>ヒント:\n\n</p><ul>\n\n<li> まず、シンボリックリンクの新しいシステムコール番号を作成し、エントリを追加します\nuser/usys.pl、user/user.h に追加し、kernel/sysfile.c に空の sys_symlink を実装します。\n\n</li><li>新しいファイルタイプを追加します(<tt>T_SYMLINK</tt>) kernel/stat.h に\nシンボリックリンクを表します。\n\n</li><li> 新しいフラグを kernel/fcntl.h に追加します (<tt>O_NOFOLLOW</tt>）、それは可能です\nと一緒に使用されます <tt>open</tt> システムコール。に渡されるフラグに注意してください。\n<tt>open</tt> ビットごとの OR 演算子を使用して結合されるため、新しい\nflag は既存のフラグと重複しないようにしてください。これにより、\nuser/symlinktest.c を Makefile に追加したら、コンパイルします。\n\n</li><li>を実装します。 <tt>symlink(target, path)</tt> 作成するシステムコール\nターゲットを参照するパスの新しいシンボリック リンク。ターゲットに注意してください\nシステムコールが成功するためには存在する必要はありません。必要になります\nシンボリック リンクのターゲット パスを保存する場所を選択するには、\nたとえば、inode のデータ ブロック内です。 <tt>symlink</tt> 整数を返す必要があります\n成功 (0) または失敗 (-1) を表します。 <tt>link</tt> そして <tt>unlink</tt>。\n\n</li><li>を変更します。 <tt>open</tt> パスが指定されていない場合を処理するためのシステムコール\nシンボリックリンクを指します。ファイルが存在しない場合は、 <tt>open</tt>\n失敗しなければなりません。 プロセスが指定する場合 <tt>O_NOFOLLOW</tt> 旗の中で\nに <tt>open</tt>、 <tt>open</tt> シンボリックリンクを開く必要があります（そうではありません）\nシンボリックリンクに従ってください)。\n\n</li><li>リンクされたファイルがシンボリック リンクでもある場合は、再帰的に\nリンク以外のファイルに到達するまでそれをたどってください。リンクが循環を形成すると、\nエラーコードを返す必要があります。を返すことでこれを近似することができます\nリンクの深さが何らかのしきい値 (10 など) に達した場合のエラー コード。\n\n</li><li> 他のシステムコール (リンクやリンク解除など) は禁止されています。 \nシンボリックリンクをたどります。これらのシステム コールはシンボリックで動作します。 \nリンク自体。\n\n</li></ul>\n\n<!-- START SECTION: submit -->\n<p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"03\">ラボを送信する</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"03.1\">費やした時間</h3>\n\n<p>新しいファイルを作成し、 <tt>time.txt</tt>、単一の整数を入力すると、\nラボに費やした時間数。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> ファイル。\n\n</p><h3 id=\"answers\" data-section-number=\"03.2\">答え</h3>\n\n<p>このラボに質問がある場合は、回答を次の場所に記入してください <tt>answers-*.txt</tt>。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> これらのファイル。\n\n</p><h3 id=\"submit\" data-section-number=\"03.3\">送信する</h3>\n\n<p>課題の提出は Gradescope によって処理されます。\nMIT グレードスコープ アカウントが必要です。\nクラスに参加するためのエントリー コードについては、Piazza を参照してください。\n使用する <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">このリンク</a>\n参加にさらにサポートが必要な場合。\n\n</p><p>送信する準備ができたら、実行します <kbd>make zipball</kbd>、\n生成するもの <tt>lab.zip</tt>。\nこの zip ファイルを対応する Gradescope 課題にアップロードします。\n\n</p><p> 走れば <kbd>make zipball</kbd> コミットされていない変更があるか、\n追跡されていないファイルの場合は、次のような出力が表示されます。\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\n上記の行を調べて、ラボ ソリューションに必要なすべてのファイルを確認してください。\n追跡されます。つまり、で始まる行にはリストされません。 <tt>??</tt>。\nあなたが引き起こすことができます <tt>git</tt> を使用して作成した新しいファイルを追跡するには\n<kbd>git add {filename}</kbd>。\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>走ってください <kbd>make grade</kbd> コードがすべてのテストに合格することを確認します。 \nGradescope 自動採点機能は、同じ採点プログラムを使用して提出物に成績を割り当てます。</li>\n  <li>実行前に変更したソース コードをコミットする <kbd>make zipball</kbd>。</li>\n  <li>提出物のステータスを確認し、提出済みのファイルをダウンロードできます。 \nGradescope のコード。 Gradescope のラボ成績が最終的なラボ成績です。</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercises\" data-section-number=\"04\">オプションのチャレンジ演習</h2>\n\n<p>トリプル間接ブロックをサポートします。\n\n</p><h3 id=\"acknowledgment\" data-section-number=\"04.1\">謝辞</h3>\n  \n<p>シンボリックリンクの演習に協力してくれた UW の CSEP551 (2019 年秋) のスタッフに感謝します。\n</p>",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 4,
+    "h3": 8,
+    "paragraphs": 25,
+    "codeBlocks": 6,
+    "links": 2,
+    "lists": 3,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 4,
+    "h3": 8,
+    "paragraphs": 25,
+    "codeBlocks": 6,
+    "links": 2,
+    "lists": 3,
+    "tables": 0,
+    "figures": 0
+  }
+}

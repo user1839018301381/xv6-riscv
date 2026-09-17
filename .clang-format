@@ -1,10 +1,14 @@
 SortIncludes: Never
 ReflowComments: Never
+IndentWidth: 4
+ContinuationIndentWidth: 4
+TabWidth: 4
+UseTab: Never
 
-BreakAfterReturnType: TopLevelDefinitions
+BreakAfterReturnType: None
+PointerAlignment: Right
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterFunction: true
 AlignConsecutiveMacros: Consecutive
-ContinuationIndentWidth: 2
 BreakStringLiterals: false

@@ -1,5 +1,5 @@
 //
-// low-level driver for 16550a UART.
+// 16550a UART用の低レベルドライバ。
 //
 
 #include "types.h"
@@ -11,145 +11,136 @@
 #include "proc.h"
 #include "defs.h"
 
-// the UART control registers are memory-mapped
-// at address UART0. this macro returns the
-// address of one of the registers.
+// UART制御レジスタはアドレスUART0にメモリマップされる。
+// このマクロはレジスタの1つのアドレスを返す。
 #define Reg(reg) ((volatile unsigned char *)(UART0 + (reg)))
 
 #define ReadReg(reg)     (*(Reg(reg)))
 #define WriteReg(reg, v) (*(Reg(reg)) = (v))
 
-// the UART control registers.
-// some have different meanings for read vs write.
-// see http://byterunner.com/16550.html
-#define RHR             0        // receive holding register (for input bytes)
-#define THR             0        // transmit holding register (for output bytes)
-#define IER             1        // interrupt enable register
-#define IER_RX_ENABLE   (1 << 0) // receiver interrupts
-#define IER_TX_ENABLE   (1 << 1) // transmit interrupts
-#define FCR             2        // FIFO control register
+// UART制御レジスタ。
+// 読み込みと書き込みで意味が異なるものがある。
+// http://byterunner.com/16550.html を参照。
+#define RHR             0        // 受信保持レジスタ（入力バイト用）
+#define THR             0        // 送信保持レジスタ（出力バイト用）
+#define IER             1        // 割り込み有効レジスタ
+#define IER_RX_ENABLE   (1 << 0) // 受信割り込み
+#define IER_TX_ENABLE   (1 << 1) // 送信割り込み
+#define FCR             2        // FIFO制御レジスタ
 #define FCR_FIFO_ENABLE (1 << 0)
-#define FCR_FIFO_CLEAR  (3 << 1) // clear the content of the two FIFOs
-#define ISR             2        // interrupt status register
-#define LCR             3        // line control register
+#define FCR_FIFO_CLEAR  (3 << 1) // 2つのFIFOの内容を消去する
+#define ISR             2        // 割り込みステータスレジスタ
+#define LCR             3        // ライン制御レジスタ
 #define LCR_EIGHT_BITS  (3 << 0)
-#define LCR_BAUD_LATCH  (1 << 7) // special mode to set baud rate
-#define LSR             5        // line status register
-#define LSR_RX_READY    (1 << 0) // input is waiting to be read from RHR
-#define LSR_TX_IDLE     (1 << 5) // THR can accept another character to send
+#define LCR_BAUD_LATCH  (1 << 7) // ボーレート設定用の特殊モード
+#define LSR             5        // ラインステータスレジスタ
+#define LSR_RX_READY    (1 << 0) // RHRから読む入力が待機中
+#define LSR_TX_IDLE     (1 << 5) // THRが次の送信文字を受け付け可能
 
-// for sending threads to serialize their writes
+// 送信スレッドの書き込みを直列化する
 static struct sleeplock tx_lock;
-static int tx_chan; // &tx_chan is the "wait channel"
+static int tx_chan; // &tx_chanは「待機チャネル」
 
-extern volatile int panicking; // from printk.c
-extern volatile int panicked;  // from printk.c
+extern volatile int panicking; // printk.cから
+extern volatile int panicked;  // printk.cから
 
-void
-uartinit(void)
+void uartinit(void)
 {
-  // disable interrupts.
-  WriteReg(IER, 0x00);
+    // 割り込みを無効にする。
+    WriteReg(IER, 0x00);
 
-  // special mode to set baud rate.
-  WriteReg(LCR, LCR_BAUD_LATCH);
+    // ボーレート設定用の特殊モード。
+    WriteReg(LCR, LCR_BAUD_LATCH);
 
-  // LSB for baud rate of 38.4K.
-  WriteReg(0, 0x03);
+    // 38.4Kボーレートの下位バイト。
+    WriteReg(0, 0x03);
 
-  // MSB for baud rate of 38.4K.
-  WriteReg(1, 0x00);
+    // 38.4Kボーレートの上位バイト。
+    WriteReg(1, 0x00);
 
-  // leave set-baud mode,
-  // and set word length to 8 bits, no parity.
-  WriteReg(LCR, LCR_EIGHT_BITS);
+    // ボーレート設定モードを終了し、
+    // ワード長を8ビット、パリティなしに設定する。
+    WriteReg(LCR, LCR_EIGHT_BITS);
 
-  // reset and enable FIFOs.
-  WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
+    // FIFOをリセットして有効にする。
+    WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
 
-  // enable transmit and receive interrupts.
-  WriteReg(IER, IER_TX_ENABLE | IER_RX_ENABLE);
+    // 送信・受信割り込みを有効にする。
+    WriteReg(IER, IER_TX_ENABLE | IER_RX_ENABLE);
 
-  initsleeplock(&tx_lock, "uart");
+    initsleeplock(&tx_lock, "uart");
 }
 
-// transmit buf[] to the uart. it blocks if the
-// uart is busy, so it cannot be called from
-// interrupts, only from write() system calls.
-void
-uartwrite(char buf[], int n)
+// buf[]をUARTへ送信する。UARTがビジーならブロックするため、
+// 割り込みからは呼べず、write()システムコールからのみ呼べる。
+void uartwrite(char buf[], int n)
 {
-  acquiresleep(&tx_lock);
+    acquiresleep(&tx_lock);
 
-  int i = 0;
-  while (i < n) {
-    sleep_prepare(&tx_chan);
-    if (ReadReg(LSR) & LSR_TX_IDLE) {
-      WriteReg(THR, buf[i]);
-      i += 1;
-    } else {
-      sleep();
+    int i = 0;
+    while (i < n) {
+        sleep_prepare(&tx_chan);
+        if (ReadReg(LSR) & LSR_TX_IDLE) {
+            WriteReg(THR, buf[i]);
+            i += 1;
+        } else {
+            sleep();
+        }
     }
-  }
 
-  releasesleep(&tx_lock);
+    releasesleep(&tx_lock);
 }
 
-// write a byte to the uart without using
-// interrupts, for use by kernel printk() and
-// to echo characters. it spins waiting for the uart's
-// output register to be empty.
-void
-uartputc_sync(int c)
+// 割り込みを使わずにUARTへ1バイトを書き込む。
+// カーネルのprintk()と文字のエコーに使う。
+// UARTの出力レジスタが空くまでスピンする。
+void uartputc_sync(int c)
 {
-  if (panicking == 0)
-    push_off();
+    if (panicking == 0)
+        push_off();
 
-  if (panicked) {
-    for (;;)
-      ;
-  }
+    if (panicked) {
+        for (;;)
+            ;
+    }
 
-  // wait for UART to set Transmit Holding Empty in LSR.
-  while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
-    ;
-  WriteReg(THR, c);
+    // UARTがLSRのTransmit Holding Emptyを設定するまで待つ。
+    while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
+        ;
+    WriteReg(THR, c);
 
-  if (panicking == 0)
-    pop_off();
+    if (panicking == 0)
+        pop_off();
 }
 
-// try to read one input character from the UART.
-// return -1 if none is waiting.
-static int
-uartgetc(void)
+// UARTから入力文字を1つ読み取ろうとする。
+// 待機中の文字がなければ-1を返す。
+static int uartgetc(void)
 {
-  // is input ready?
-  if (ReadReg(LSR) & LSR_RX_READY) {
-    return ReadReg(RHR);
-  } else {
-    return -1;
-  }
+    // 入力は準備できているか?
+    if (ReadReg(LSR) & LSR_RX_READY) {
+        return ReadReg(RHR);
+    } else {
+        return -1;
+    }
 }
 
-// handle a uart interrupt, raised because input has
-// arrived, or the uart is ready for more output, or
-// both. called from devintr().
-void
-uartintr(void)
+// 入力の到着、さらなる出力の準備完了、またはその両方で発生した
+// UART割り込みを処理する。devintr()から呼ばれる。
+void uartintr(void)
 {
-  ReadReg(ISR); // acknowledge the interrupt
+    ReadReg(ISR); // 割り込みを確認する
 
-  if (ReadReg(LSR) & LSR_TX_IDLE) {
-    // UART finished transmitting; wake up sending thread.
-    wakeup(&tx_chan);
-  }
+    if (ReadReg(LSR) & LSR_TX_IDLE) {
+        // UARTの送信が完了したので送信スレッドを起こす。
+        wakeup(&tx_chan);
+    }
 
-  // read and process incoming characters, if any.
-  while (1) {
-    int c = uartgetc();
-    if (c == -1)
-      break;
-    consoleintr(c);
-  }
+    // 到着した文字があれば読み取って処理する。
+    while (1) {
+        int c = uartgetc();
+        if (c == -1)
+            break;
+        consoleintr(c);
+    }
 }

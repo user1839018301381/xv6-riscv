@@ -1,0 +1,32 @@
+---
+interface Item {
+  depth: number;
+  id: string;
+  text: string;
+  number?: string;
+}
+
+interface Props {
+  title?: string;
+  items: Item[];
+}
+
+const { title = 'On this page', items } = Astro.props;
+---
+
+{items.length > 0 && (
+  <>
+    <details class="mobile-toc">
+      <summary>{title}</summary>
+      <ol>
+        {items.map((item) => <li data-depth={item.depth}><a href={`#${item.id}`}>{item.number && <span>{item.number}</span>}{item.text}</a></li>)}
+      </ol>
+    </details>
+    <nav class="article-toc" aria-label={title}>
+      <p class="rail-title">{title}</p>
+      <ol>
+        {items.map((item) => <li data-depth={item.depth}><a href={`#${item.id}`}>{item.number && <span>{item.number}</span>}{item.text}</a></li>)}
+      </ol>
+    </nav>
+  </>
+)}

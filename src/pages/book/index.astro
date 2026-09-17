@@ -1,0 +1,26 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { chapterPath } from '../../../scripts/lib/config.ts';
+
+const chapters = (await getCollection('book')).sort((a, b) => a.data.chapter - b.data.chapter);
+---
+
+<BaseLayout title="Book" description="The official xv6 book, converted from its source repository into readable local Markdown.">
+  <div class="index-shell">
+    <header class="index-heading">
+      <h1>The xv6 book</h1>
+      <p>The official source, converted chapter by chapter into local Markdown with figures, code, mathematics, and references kept in place.</p>
+    </header>
+
+    <nav class="collection-links" aria-label="Book chapters">
+      {chapters.map((chapter) => (
+        <a class="collection-link" href={chapterPath(chapter.data.chapter)}>
+          <span class="collection-link__number">{String(chapter.data.chapter).padStart(2, '0')}</span>
+          <strong>{chapter.data.title}</strong>
+          <span class="collection-link__meta">Chapter {chapter.data.chapter}</span>
+        </a>
+      ))}
+    </nav>
+  </div>
+</BaseLayout>

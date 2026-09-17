@@ -1,38 +1,38 @@
 struct file {
-  enum { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE } type;
-  int ref; // reference count
-  char readable;
-  char writable;
-  struct pipe *pipe; // FD_PIPE
-  struct inode *ip;  // FD_INODE and FD_DEVICE
-  uint off;          // FD_INODE
-  short major;       // FD_DEVICE
+    enum { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE } type;
+    int ref; // 参照カウント
+    char readable;
+    char writable;
+    struct pipe *pipe; // FD_PIPEの場合
+    struct inode *ip;  // FD_INODEおよびFD_DEVICEの場合
+    uint off;          // FD_INODEの場合のオフセット
+    short major;       // FD_DEVICEの場合のメジャー番号
 };
 
 #define major(dev)  ((dev) >> 16 & 0xFFFF)
 #define minor(dev)  ((dev) & 0xFFFF)
 #define mkdev(m, n) ((uint)((m) << 16 | (n)))
 
-// in-memory copy of an inode
+// inodeのメモリ上のコピー
 struct inode {
-  uint dev;              // Device number
-  uint inum;             // Inode number
-  int ref;               // Reference count
-  struct sleeplock lock; // protects everything below here
-  int valid;             // inode has been read from disk?
+    uint dev;              // デバイス番号
+    uint inum;             // inode番号
+    int ref;               // 参照カウント
+    struct sleeplock lock; // ここから下の全てを保護する
+    int valid;             // inodeはディスクから読み込まれたか?
 
-  short type; // copy of disk inode
-  short major;
-  short minor;
-  short nlink;
-  uint size;
-  uint addrs[NDIRECT + 1];
+    short type; // ディスク上のinodeのコピー
+    short major;
+    short minor;
+    short nlink;
+    uint size;
+    uint addrs[NDIRECT + 1];
 };
 
-// map major device number to device functions.
+// メジャーデバイス番号からデバイス操作関数への対応表。
 struct devsw {
-  int (*read)(int, uint64, int);
-  int (*write)(int, uint64, int);
+    int (*read)(int, uint64, int);
+    int (*write)(int, uint64, int);
 };
 
 extern struct devsw devsw[];

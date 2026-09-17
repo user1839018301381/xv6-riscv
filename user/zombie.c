@@ -1,14 +1,13 @@
-// Create a zombie process that
-// must be reparented at exit.
+// 終了時に親を付け替えなければならない
+// ゾンビプロセスを作成する。
 
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
 
-int
-main(void)
+int main(void)
 {
-  if (fork() > 0)
-    pause(5); // Let child exit before parent.
-  exit(0);
+    if (fork() > 0)
+        pause(5); // 親より先に子が終了するよう待つ。
+    exit(0);
 }

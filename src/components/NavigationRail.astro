@@ -1,0 +1,29 @@
+---
+interface Item {
+  href: string;
+  label: string;
+  number?: string;
+}
+
+interface Props {
+  title: string;
+  items: Item[];
+  activeHref: string;
+}
+
+const { title, items, activeHref } = Astro.props;
+---
+
+<nav class="navigation-rail" aria-label={title}>
+  <p class="rail-title">{title}</p>
+  <ol>
+    {items.map((item) => (
+      <li>
+        <a href={item.href} aria-current={item.href === activeHref ? 'page' : undefined}>
+          {item.number && <span>{item.number}</span>}
+          <span>{item.label}</span>
+        </a>
+      </li>
+    ))}
+  </ol>
+</nav>

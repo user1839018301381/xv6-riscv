@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/mit-pdos/xv6-riscv-book",
+  "commit": "2d689eee47087bea267914123b8b1172583cbb0e",
+  "fetchedAt": "2026-09-17T04:18:28.489Z",
+  "converter": "official convert-quarto.py, followed by Quarto citeproc",
+  "generatedFigureSource": "https://mit-pdos.github.io/xv6-riscv-book/",
+  "generatedFigures": [
+    "fslayer.svg",
+    "fslayout.svg",
+    "order.svg",
+    "switch.svg",
+    "trap.svg"
+  ]
+}

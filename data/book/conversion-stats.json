@@ -1,0 +1,257 @@
+{
+  "generatedAt": "2026-09-17T04:18:28.488Z",
+  "chapters": [
+    {
+      "chapter": 0,
+      "file": "00-acknowledgments.md",
+      "source": {
+        "headings": 0,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 1,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 1,
+      "file": "01-operating-system-interfaces.md",
+      "source": {
+        "headings": 6,
+        "codeBlocks": 27,
+        "figures": 2,
+        "tables": 1,
+        "footnotes": 1
+      },
+      "output": {
+        "headings": 7,
+        "codeBlocks": 27,
+        "figures": 2,
+        "tables": 1,
+        "footnotes": 1
+      }
+    },
+    {
+      "chapter": 2,
+      "file": "02-operating-system-organization.md",
+      "source": {
+        "headings": 9,
+        "codeBlocks": 0,
+        "figures": 3,
+        "tables": 1,
+        "footnotes": 1
+      },
+      "output": {
+        "headings": 10,
+        "codeBlocks": 0,
+        "figures": 3,
+        "tables": 1,
+        "footnotes": 1
+      }
+    },
+    {
+      "chapter": 3,
+      "file": "03-page-tables.md",
+      "source": {
+        "headings": 9,
+        "codeBlocks": 1,
+        "figures": 4,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 10,
+        "codeBlocks": 1,
+        "figures": 4,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 4,
+      "file": "04-traps-and-system-calls.md",
+      "source": {
+        "headings": 7,
+        "codeBlocks": 1,
+        "figures": 1,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 8,
+        "codeBlocks": 1,
+        "figures": 1,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 5,
+      "file": "05-page-faults.md",
+      "source": {
+        "headings": 6,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 6,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 6,
+      "file": "06-interrupts-and-device-drivers.md",
+      "source": {
+        "headings": 6,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 7,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 7,
+      "file": "07-locking.md",
+      "source": {
+        "headings": 10,
+        "codeBlocks": 5,
+        "figures": 4,
+        "tables": 1,
+        "footnotes": 1
+      },
+      "output": {
+        "headings": 11,
+        "codeBlocks": 5,
+        "figures": 4,
+        "tables": 1,
+        "footnotes": 1
+      }
+    },
+    {
+      "chapter": 8,
+      "file": "08-scheduling.md",
+      "source": {
+        "headings": 7,
+        "codeBlocks": 1,
+        "figures": 2,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 7,
+        "codeBlocks": 1,
+        "figures": 2,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 9,
+      "file": "09-sleep-and-wakeup.md",
+      "source": {
+        "headings": 7,
+        "codeBlocks": 4,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 8,
+        "codeBlocks": 4,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 10,
+      "file": "10-file-system.md",
+      "source": {
+        "headings": 13,
+        "codeBlocks": 0,
+        "figures": 3,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 13,
+        "codeBlocks": 0,
+        "figures": 3,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 11,
+      "file": "11-crash-recovery.md",
+      "source": {
+        "headings": 4,
+        "codeBlocks": 3,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 4,
+        "codeBlocks": 3,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      }
+    },
+    {
+      "chapter": 12,
+      "file": "12-locking-revisited.md",
+      "source": {
+        "headings": 5,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 1
+      },
+      "output": {
+        "headings": 5,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 1
+      }
+    },
+    {
+      "chapter": 13,
+      "file": "13-summary.md",
+      "source": {
+        "headings": 0,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      },
+      "output": {
+        "headings": 0,
+        "codeBlocks": 0,
+        "figures": 0,
+        "tables": 0,
+        "footnotes": 0
+      }
+    }
+  ]
+}

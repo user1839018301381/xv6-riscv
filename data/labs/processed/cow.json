@@ -1,0 +1,79 @@
+{
+  "slug": "cow",
+  "title": "Lab: Copy-on-Write Fork for xv6",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/cow.html",
+  "fetchedAt": "2026-09-17T03:57:23.896Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "the-problem",
+      "text": "The problem",
+      "number": "01"
+    },
+    {
+      "depth": 2,
+      "id": "the-solution",
+      "text": "The solution",
+      "number": "02"
+    },
+    {
+      "depth": 2,
+      "id": "implement-copy-on-write-fork",
+      "text": "Implement copy-on-write fork",
+      "number": "03"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "Submit the lab",
+      "number": "04"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "Time spent",
+      "number": "04.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "Answers",
+      "number": "04.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "Submit",
+      "number": "04.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercise",
+      "text": "Optional challenge exercise",
+      "number": "05"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-copy-on-write-fork-for-xv6\">Lab: Copy-on-Write Fork for xv6</h1>\n\n<p> Virtual memory provides a level of indirection: the kernel can\nintercept memory references by marking PTEs invalid or read-only,\nleading to page faults,\nand can change what addresses mean by modifying PTEs.\nThere is a saying in computer systems that any systems problem can be\nsolved with a level of indirection.  \nThis lab explores an example: copy-on-write fork.\n    \n</p><p>To start the lab, switch to the cow branch:\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ git fetch\n$ git checkout cow\n$ make clean</code></pre>\n\n<h2 id=\"the-problem\" data-section-number=\"01\">The problem</h2>\n\nThe fork() system call in xv6 copies all of the parent process's\nuser-space memory into the child. If the parent is large, copying can\ntake a long time. Worse, the work is often largely wasted:\nfork() is commonly followed by exec() in the child, which \ndiscards the copied memory, usually without using most of it.\nOn the other hand, if both parent and child use a copied page, and one or both\nwrites it, the copy is truly needed.\n\n<h2 id=\"the-solution\" data-section-number=\"02\">The solution</h2>\n\nYour goal in implementing copy-on-write (COW) fork() is to defer allocating and\ncopying physical memory pages until the copies are actually\nneeded, if ever.\n\n<p>\nCOW fork() creates just a pagetable for the child, with PTEs for user\nmemory pointing to the parent's physical pages. COW fork() marks all\nthe user PTEs in both parent and child as read-only. When either\nprocess tries to write one of these COW pages, the CPU will force a\npage fault. The kernel page-fault handler detects this case, allocates\na page of physical memory for the faulting process, copies the\noriginal page into the new page, and modifies the relevant PTE in the\nfaulting process to refer to the new page, this time with the PTE\nmarked writeable. When the page fault handler returns, the user\nprocess will be able to write its copy of the page.\n\n</p><p>\nCOW fork() makes freeing of the physical pages that implement user\nmemory a little trickier. A given physical page may be referred to by\nmultiple processes' page tables, and should be freed only when the\nlast reference disappears.  In a simple kernel like xv6 this\nbookkeeping is reasonably straightforward, but in production kernels\nthis can be difficult to get right; see, for example,\n<a href=\"https://lwn.net/Articles/849638/\" class=\"external-link\" rel=\"noreferrer\">Patching until the COWs\ncome home</a>.\n\n</p><h2 id=\"implement-copy-on-write-fork\" data-section-number=\"03\">Implement copy-on-write fork</h2>\n\n<p>\n</p><div class=\"lab-required\">\nYour task is to implement copy-on-write fork in the xv6 kernel. You are\ndone if your modified kernel executes both the cowtest and 'usertests -q'\nprograms successfully.\n</div>\n\n<p>To help you test your implementation, we've provided an xv6 program\ncalled cowtest (source in user/cowtest.c). cowtest runs various tests, but\neven the first will fail on unmodified xv6. Thus, initially, you\nwill see:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ cowtest\nsimple: fork() failed\n$ </code></pre>\n\nThe \"simple\" test allocates more than half of available physical\nmemory, and then fork()s. The fork fails because there is not enough\nfree physical memory to give the child a complete copy of the parent's memory.\n\n<p>\nWhen you are done, your kernel should pass all the tests in both cowtest and\nusertests -q. That is:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ cowtest\nsimple: ok\nsimple: ok\nthree: ok\nthree: ok\nthree: ok\nfile: ok\nforkfork: ok\nALL COW TESTS PASSED\n$ usertests -q\n...\nALL TESTS PASSED\n$</code></pre>\n\n<p>\nHere's a reasonable plan of attack.\n\n</p><ol>\n\n<li> Modify uvmcopy() to map the parent's physical pages into the\nchild, instead of allocating new pages. Clear <tt>PTE_W</tt> in the\nPTEs of both child and parent for pages that have <tt>PTE_W</tt> set.\n\n  \n</li><li> Modify vmfault() to recognize page faults. When a write page-fault\noccurs on a COW page that was originally writeable,\nallocate a new page with kalloc(), copy the old\npage to the new page, and install the new page in the PTE with <tt>PTE_W</tt>\nset.\nPages that were originally read-only (not mapped <tt>PTE_W</tt>,\nlike pages in the text segment) should remain read-only and\nshared between parent and child; a process that tries to write\nsuch a page should be killed.\n\n</li><li> Ensure that each physical page is freed when the last PTE\nreference to it goes away -- but not before.\nA good way to do this is to keep, for each physical page, a \"reference count\"\nof the number of user page tables that refer to that page.\nSet a page's reference count to one when <tt>kalloc()</tt> allocates it.\nIncrement a page's reference count\nwhen fork causes a child to share the page, and\ndecrement a page's count each time any process drops\nthe page from its page table.\n<tt>kfree()</tt> should only place a page back on the free list if its\nreference count is zero.  It's OK to to keep these counts in a\nfixed-size array of integers.  You'll have to work out a scheme for\nhow to index the array and how to choose its size. For example, you\ncould index the array with the page's physical address divided by\n4096, and give the array a number of elements equal to highest\nphysical address of any page placed on the free list\nby <tt>kinit()</tt> in kalloc.c. Feel free to modify kalloc.c\n(e.g., <tt>kalloc()</tt> and <tt>kfree()</tt>) to maintain the\nreference counts.\n\n</li><li> Modify copyout() to use the\nsame scheme as page faults when it encounters a COW page.\n\n</li></ol>\n\n<p>Some hints:\n\n  </p><ul>\n    \n<li>\nIt may be useful to have a way to record, for each PTE, whether it is\na COW mapping. You can use the RSW (reserved for software) bits in\nthe RISC-V PTE for this.\n\n</li><li>\n<tt>usertests -q</tt> explores scenarios that <tt>cowtest</tt> does not test,\nso don't forget to check that all tests pass for both.\n\n</li><li>Some helpful macros and definitions for page table flags are at the\nend of <tt>kernel/riscv.h</tt>.\n\n</li><li>If a COW page fault occurs and there's no free memory, the process\nshould be killed.\n\n  </li></ul>\n  \n<!-- START SECTION: submit -->\n<p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"04\">Submit the lab</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"04.1\">Time spent</h3>\n\n<p>Create a new file, <tt>time.txt</tt>, and put in a single integer, the\nnumber of hours you spent on the lab.\n<kbd>git add</kbd> and <kbd>git commit</kbd> the file.\n\n</p><h3 id=\"answers\" data-section-number=\"04.2\">Answers</h3>\n\n<p>If this lab had questions, write up your answers in <tt>answers-*.txt</tt>.\n<kbd>git add</kbd> and <kbd>git commit</kbd> these files.\n\n</p><h3 id=\"submit\" data-section-number=\"04.3\">Submit</h3>\n\n<p>Assignment submissions are handled by Gradescope.\nYou will need an MIT gradescope account.\nSee Piazza for the entry code to join the class.\nUse <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">this link</a>\nif you need more help joining.\n\n</p><p>When you're ready to submit, run <kbd>make zipball</kbd>,\nwhich will generate <tt>lab.zip</tt>.\nUpload this zip file to the corresponding Gradescope assignment.\n\n</p><p> If you run <kbd>make zipball</kbd> and you have either uncomitted changes or\nuntracked files, you will see output similar to the following:\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\nInspect the above lines and make sure all files that your lab solution needs\nare tracked, i.e., not listed in a line that begins with <tt>??</tt>.\nYou can cause <tt>git</tt> to track a new file that you create using\n<kbd>git add {filename}</kbd>.\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>Please run <kbd>make grade</kbd> to ensure that your code passes all of the tests.\n    The Gradescope autograder will use the same grading program to assign your submission a grade.</li>\n  <li>Commit any modified source code before running <kbd>make zipball</kbd>.</li>\n  <li>You can inspect the status of your submission and download the submitted\n    code at Gradescope. The Gradescope lab grade is your final lab grade.</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercise\" data-section-number=\"05\">Optional challenge exercise</h2>\n\n<ul>\n\n  <li>Measure how much your COW implementation reduces the number\n  of bytes xv6 copies and the number of physical pages it allocates.\n  Find and exploit opportunities to further reduce those numbers.\n\n</li></ul>\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 5,
+    "h3": 3,
+    "paragraphs": 17,
+    "codeBlocks": 4,
+    "links": 2,
+    "lists": 4,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 5,
+    "h3": 3,
+    "paragraphs": 17,
+    "codeBlocks": 4,
+    "links": 2,
+    "lists": 4,
+    "tables": 0,
+    "figures": 0
+  }
+}

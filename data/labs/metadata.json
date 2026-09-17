@@ -1,0 +1,86 @@
+{
+  "course": "MIT 6.1810 Fall 2026",
+  "allowlist": [
+    "util",
+    "syscall",
+    "pgtbl",
+    "traps",
+    "cow",
+    "net",
+    "lock",
+    "fs",
+    "mmap"
+  ],
+  "listSource": "https://pdos.csail.mit.edu/6.S081/2026/schedule.html",
+  "listVerifiedAt": "2026-09-17T03:57:10.944Z",
+  "robots": {
+    "source": "https://pdos.csail.mit.edu/robots.txt",
+    "checkedAt": "2026-09-17T03:57:07.197Z",
+    "status": 404
+  },
+  "labs": {
+    "util": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/util.html",
+      "fetchedAt": "2026-09-17T03:56:50.225Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "syscall": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/syscall.html",
+      "fetchedAt": "2026-09-17T03:57:14.496Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "pgtbl": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/pgtbl.html",
+      "fetchedAt": "2026-09-17T03:57:17.689Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "traps": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/traps.html",
+      "fetchedAt": "2026-09-17T03:57:20.882Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "cow": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/cow.html",
+      "fetchedAt": "2026-09-17T03:57:23.896Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "net": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/net.html",
+      "fetchedAt": "2026-09-17T03:57:27.696Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "lock": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/lock.html",
+      "fetchedAt": "2026-09-17T03:57:31.325Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "fs": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/fs.html",
+      "fetchedAt": "2026-09-17T03:57:34.541Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    },
+    "mmap": {
+      "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/mmap.html",
+      "fetchedAt": "2026-09-17T03:57:37.748Z",
+      "etag": null,
+      "lastModified": null,
+      "assets": []
+    }
+  }
+}

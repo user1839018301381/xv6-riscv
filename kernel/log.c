@@ -7,255 +7,244 @@
 #include "fs.h"
 #include "buf.h"
 
-// Simple logging that allows concurrent FS system calls.
+// 複数のFSシステムコールを並行実行できる単純なログ機構。
 //
-// A log transaction contains the updates of multiple FS system
-// calls. The logging system only commits when there are
-// no FS system calls active. Thus there is never
-// any reasoning required about whether a commit might
-// write an uncommitted system call's updates to disk.
+// 1つのログトランザクションには複数のFSシステムコールによる更新が含まれる。
+// ログ機構はFSシステムコールが実行中でないときだけコミットする。
+// そのため、コミットによって未コミットのシステムコールの更新が
+// ディスクに書かれる可能性を考える必要はない。
 //
-// A system call should call begin_op()/end_op() to mark
-// its start and end. Usually begin_op() just increments
-// the count of in-progress FS system calls and returns.
-// But if it thinks the log is close to running out, it
-// sleeps until the last outstanding end_op() commits.
+// システムコールは開始時と終了時にbegin_op()/end_op()を呼ぶ。
+// 通常、begin_op()は実行中のFSシステムコール数を増やして戻る。
+// ただしログが満杯に近いと判断した場合は、
+// 最後に残ったend_op()がコミットするまでスリープする。
 //
-// The log is a physical re-do log containing disk blocks.
-// The on-disk log format:
-//   header block, containing block #s for block A, B, C, ...
-//   block A
-//   block B
-//   block C
+// ログはディスクブロックを含む物理的な再実行ログである。
+// ディスク上のログ形式:
+//   ブロックA、B、C、...の番号を含むヘッダブロック
+//   ブロックA
+//   ブロックB
+//   ブロックC
 //   ...
-// Log appends are synchronous.
+// ログへの追加は同期的に行う。
 
-// Contents of the header block, used for both the on-disk header block
-// and to keep track in memory of logged block# before commit.
+// ヘッダブロックの内容。
+// ディスク上のヘッダブロックと、コミット前にログ対象ブロック番号を
+// メモリ上で追跡するための両方に使う。
 struct logheader {
-  int n;
-  int block[LOGBLOCKS];
+    int n;
+    int block[LOGBLOCKS];
 };
 
 struct log {
-  struct spinlock lock;
-  int start;
-  int outstanding; // how many FS sys calls are executing.
-  int committing;  // in commit(), please wait.
-  int dev;
-  int ncommit;
-  struct logheader lh;
+    struct spinlock lock;
+    int start;
+    int outstanding; // 実行中のFSシステムコール数。
+    int committing;  // commit()中なので待機する。
+    int dev;
+    int ncommit;
+    struct logheader lh;
 };
 struct log log;
 
 static void recover_from_log(void);
 static void commit();
 
-void
-initlog(int dev, struct superblock *sb)
+void initlog(int dev, struct superblock *sb)
 {
-  if (sizeof(struct logheader) >= BSIZE)
-    panic("initlog: too big logheader");
+    if (sizeof(struct logheader) >= BSIZE)
+        panic("initlog: too big logheader");
 
-  initlock(&log.lock, "log");
-  log.start = sb->logstart;
-  log.dev = dev;
-  recover_from_log();
+    initlock(&log.lock, "log");
+    log.start = sb->logstart;
+    log.dev = dev;
+    recover_from_log();
 }
 
-// Copy committed blocks from log to their home location
-static void
-install_trans(int recovering)
+// コミット済みのブロックをログから本来の場所へ複写する。
+static void install_trans(int recovering)
 {
-  int tail;
+    int tail;
 
-  for (tail = 0; tail < log.lh.n; tail++) {
-    if (recovering) {
-      printk("recovering tail %d dst %d\n", tail, log.lh.block[tail]);
+    for (tail = 0; tail < log.lh.n; tail++) {
+        if (recovering) {
+            printk("recovering tail %d dst %d\n", tail, log.lh.block[tail]);
+        }
+        struct buf *lbuf =
+            bread(log.dev, log.start + tail + 1); // ログブロックを読む
+        struct buf *dbuf =
+            bread(log.dev, log.lh.block[tail]); // 書き込み先を読む
+        memmove(dbuf->data, lbuf->data, BSIZE); // ブロックを書き込み先へ複写
+        bwrite(dbuf);                           // 書き込み先をディスクへ書く
+        if (recovering == 0)
+            bunpin(dbuf);
+        brelse(lbuf);
+        brelse(dbuf);
     }
-    struct buf *lbuf = bread(log.dev, log.start + tail + 1); // read log block
-    struct buf *dbuf = bread(log.dev, log.lh.block[tail]);   // read dst
-    memmove(dbuf->data, lbuf->data, BSIZE); // copy block to dst
-    bwrite(dbuf);                           // write dst to disk
-    if (recovering == 0)
-      bunpin(dbuf);
-    brelse(lbuf);
-    brelse(dbuf);
-  }
 }
 
-// Read the log header from disk into the in-memory log header
-static void
-read_head(void)
+// ディスク上のログヘッダをメモリ上のログヘッダに読み込む。
+static void read_head(void)
 {
-  struct buf *buf = bread(log.dev, log.start);
-  struct logheader *lh = (struct logheader *)(buf->data);
-  int i;
-  log.lh.n = lh->n;
-  for (i = 0; i < log.lh.n; i++) {
-    log.lh.block[i] = lh->block[i];
-  }
-  brelse(buf);
-}
-
-// Write in-memory log header to disk.
-// This is the true point at which the
-// current transaction commits.
-static void
-write_head(void)
-{
-  struct buf *buf = bread(log.dev, log.start);
-  struct logheader *hb = (struct logheader *)(buf->data);
-  int i;
-  hb->n = log.lh.n;
-  for (i = 0; i < log.lh.n; i++) {
-    hb->block[i] = log.lh.block[i];
-  }
-  bwrite(buf);
-  brelse(buf);
-}
-
-static void
-recover_from_log(void)
-{
-  read_head();
-  install_trans(1); // if committed, copy from log to disk
-  log.lh.n = 0;
-  write_head(); // clear the log
-}
-
-// called at the start of each FS system call.
-void
-begin_op(void)
-{
-  acquire(&log.lock);
-  while (1) {
-    if (log.committing) {
-      sleep_prepare(&log);
-      release(&log.lock);
-      sleep();
-      acquire(&log.lock);
-    } else if (log.lh.n + (log.outstanding + 1) * MAXOPBLOCKS > LOGBLOCKS) {
-      // this op might exhaust log space; wait for commit.
-      sleep_prepare(&log);
-      release(&log.lock);
-      sleep();
-      acquire(&log.lock);
-    } else {
-      log.outstanding += 1;
-      release(&log.lock);
-      break;
+    struct buf *buf = bread(log.dev, log.start);
+    struct logheader *lh = (struct logheader *)(buf->data);
+    int i;
+    log.lh.n = lh->n;
+    for (i = 0; i < log.lh.n; i++) {
+        log.lh.block[i] = lh->block[i];
     }
-  }
+    brelse(buf);
 }
 
-// called at the end of each FS system call.
-// commits if this was the last outstanding operation.
-void
-end_op(void)
+// メモリ上のログヘッダをディスクに書き込む。
+// ここが現在のトランザクションが実際にコミットされる時点である。
+static void write_head(void)
 {
-  int do_commit = 0;
-
-  acquire(&log.lock);
-  log.outstanding -= 1;
-  if (log.committing)
-    panic("log.committing");
-  if (log.outstanding == 0) {
-    do_commit = 1;
-    log.committing = 1;
-  } else {
-    // begin_op() may be waiting for log space,
-    // and decrementing log.outstanding has decreased
-    // the amount of reserved space.
-    wakeup(&log);
-  }
-  release(&log.lock);
-
-  if (do_commit) {
-    // call commit w/o holding locks, since not allowed
-    // to sleep with locks.
-    commit();
-    acquire(&log.lock);
-    log.committing = 0;
-    log.ncommit += 1;
-    wakeup(&log);
-    release(&log.lock);
-  }
+    struct buf *buf = bread(log.dev, log.start);
+    struct logheader *hb = (struct logheader *)(buf->data);
+    int i;
+    hb->n = log.lh.n;
+    for (i = 0; i < log.lh.n; i++) {
+        hb->block[i] = log.lh.block[i];
+    }
+    bwrite(buf);
+    brelse(buf);
 }
 
-// Copy modified blocks from cache to log.
-static void
-write_log(void)
+static void recover_from_log(void)
 {
-  int tail;
-
-  for (tail = 0; tail < log.lh.n; tail++) {
-    struct buf *to = bread(log.dev, log.start + tail + 1); // log block
-    struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
-    memmove(to->data, from->data, BSIZE);
-    bwrite(to); // write the log
-    brelse(from);
-    brelse(to);
-  }
-}
-
-static void
-commit()
-{
-  if (log.lh.n > 0) {
-    write_log();      // Write modified blocks from cache to log
-    write_head();     // Write header to disk -- the real commit
-    install_trans(0); // Now install writes to home locations
+    read_head();
+    install_trans(1); // コミット済みならログからディスクへ複写する
     log.lh.n = 0;
-    write_head(); // Erase the transaction from the log
-  }
+    write_head(); // ログを消去する
 }
 
-// Caller has modified b->data and is done with the buffer.
-// Record the block number and pin in the cache by increasing refcnt.
-// commit()/write_log() will do the disk write.
+// 各FSシステムコールの開始時に呼ばれる。
+void begin_op(void)
+{
+    acquire(&log.lock);
+    while (1) {
+        if (log.committing) {
+            sleep_prepare(&log);
+            release(&log.lock);
+            sleep();
+            acquire(&log.lock);
+        } else if (log.lh.n + (log.outstanding + 1) * MAXOPBLOCKS > LOGBLOCKS) {
+            // この操作でログ領域を使い切る可能性があるため、コミットを待つ。
+            sleep_prepare(&log);
+            release(&log.lock);
+            sleep();
+            acquire(&log.lock);
+        } else {
+            log.outstanding += 1;
+            release(&log.lock);
+            break;
+        }
+    }
+}
+
+// 各FSシステムコールの終了時に呼ばれる。
+// 実行中の最後の操作ならコミットする。
+void end_op(void)
+{
+    int do_commit = 0;
+
+    acquire(&log.lock);
+    log.outstanding -= 1;
+    if (log.committing)
+        panic("log.committing");
+    if (log.outstanding == 0) {
+        do_commit = 1;
+        log.committing = 1;
+    } else {
+        // begin_op()がログ領域を待っている可能性があり、
+        // log.outstandingを減らすと予約済み領域が減る。
+        wakeup(&log);
+    }
+    release(&log.lock);
+
+    if (do_commit) {
+        // ロックを保持したままスリープできないため、
+        // ロックを保持せずにcommitを呼ぶ。
+        commit();
+        acquire(&log.lock);
+        log.committing = 0;
+        log.ncommit += 1;
+        wakeup(&log);
+        release(&log.lock);
+    }
+}
+
+// 変更されたブロックをキャッシュからログへ複写する。
+static void write_log(void)
+{
+    int tail;
+
+    for (tail = 0; tail < log.lh.n; tail++) {
+        struct buf *to = bread(log.dev, log.start + tail + 1); // ログブロック
+        struct buf *from =
+            bread(log.dev, log.lh.block[tail]); // キャッシュブロック
+        memmove(to->data, from->data, BSIZE);
+        bwrite(to); // ログを書き込む
+        brelse(from);
+        brelse(to);
+    }
+}
+
+static void commit()
+{
+    if (log.lh.n > 0) {
+        write_log();      // 変更ブロックをキャッシュからログへ書く
+        write_head();     // ヘッダをディスクへ書く -- 実際のコミット
+        install_trans(0); // 本来の場所へ書き込みを反映する
+        log.lh.n = 0;
+        write_head(); // ログからトランザクションを消去する
+    }
+}
+
+// 呼び出し元はb->dataを変更し、バッファの使用を終えている。
+// refcntを増やしてブロック番号を記録し、キャッシュ内でピン留めする。
+// ディスクへの書き込みはcommit()/write_log()が行う。
 //
-// log_write() replaces bwrite(); a typical use is:
+// log_write()はbwrite()の代わりになる。典型的な使い方:
 //   bp = bread(...)
-//   modify bp->data[]
+//   bp->data[]を変更
 //   log_write(bp)
 //   brelse(bp)
-void
-log_write(struct buf *b)
+void log_write(struct buf *b)
 {
-  int i;
+    int i;
 
-  acquire(&log.lock);
-  if (log.lh.n >= LOGBLOCKS)
-    panic("too big a transaction");
-  if (log.outstanding < 1)
-    panic("log_write outside of trans");
+    acquire(&log.lock);
+    if (log.lh.n >= LOGBLOCKS)
+        panic("too big a transaction");
+    if (log.outstanding < 1)
+        panic("log_write outside of trans");
 
-  for (i = 0; i < log.lh.n; i++) {
-    if (log.lh.block[i] == b->blockno) // log absorption
-      break;
-  }
-  log.lh.block[i] = b->blockno;
-  if (i == log.lh.n) { // Add new block to log?
-    bpin(b);
-    log.lh.n++;
-  }
-  release(&log.lock);
+    for (i = 0; i < log.lh.n; i++) {
+        if (log.lh.block[i] == b->blockno) // ログの吸収
+            break;
+    }
+    log.lh.block[i] = b->blockno;
+    if (i == log.lh.n) { // ログに新しいブロックを追加する?
+        bpin(b);
+        log.lh.n++;
+    }
+    release(&log.lock);
 }
 
-uint64
-sys_sync(void)
+uint64 sys_sync(void)
 {
-  acquire(&log.lock);
-  if (log.committing || log.outstanding > 0) {
-    int n = log.ncommit + 1;
-    while (log.ncommit < n) {
-      sleep_prepare(&log);
-      release(&log.lock);
-      sleep();
-      acquire(&log.lock);
+    acquire(&log.lock);
+    if (log.committing || log.outstanding > 0) {
+        int n = log.ncommit + 1;
+        while (log.ncommit < n) {
+            sleep_prepare(&log);
+            release(&log.lock);
+            sleep();
+            acquire(&log.lock);
+        }
     }
-  }
-  release(&log.lock);
-  return 0;
+    release(&log.lock);
+    return 0;
 }

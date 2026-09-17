@@ -1,0 +1,91 @@
+{
+  "slug": "traps",
+  "title": "ラボ: トラップ",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/traps.html",
+  "fetchedAt": "2026-09-17T03:57:20.882Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "risc-v-assembly",
+      "text": "RISC-Vアセンブリ",
+      "number": "01"
+    },
+    {
+      "depth": 2,
+      "id": "backtrace",
+      "text": "バックトレース",
+      "number": "02"
+    },
+    {
+      "depth": 2,
+      "id": "alarm",
+      "text": "アラーム",
+      "number": "03"
+    },
+    {
+      "depth": 3,
+      "id": "test0-invoke-handler",
+      "text": "test0: ハンドラーの呼び出し",
+      "number": "03.1"
+    },
+    {
+      "depth": 3,
+      "id": "test1test2test3-resume-interrupted-code",
+      "text": "test1/test2()/test3(): 中断されたコードを再開します",
+      "number": "03.2"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "ラボを送信する",
+      "number": "04"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "費やした時間",
+      "number": "04.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "答え",
+      "number": "04.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "送信する",
+      "number": "04.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercises",
+      "text": "オプションのチャレンジ演習",
+      "number": "05"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-traps\">ラボ: トラップ</h1>\n\n<p>このラボでは、トラップを使用してシステム コールがどのように実装されるかを調査します。 \nまずスタックを使用してウォームアップ演習を行い、その後、\n ユーザーレベルのトラップ処理の例を実装します。\n\n</p><div class=\"lab-prereq\">\n<p>コーディングを始める前に、本書の第 4 章を読んでください。 <a href=\"/book/chapter-4/\" class=\"book-link\">xv6 本</a>、そして\n 関連するソース ファイル:\n  \n  </p><ul>\n\n    <li> <tt>kernel/trampoline.S</tt>: に関与するアセンブリ\n ユーザー空間からカーネル空間への変更、およびその逆の変更\n      \n    </li><li> <tt>kernel/trap.c</tt>: すべての割り込みを処理するコード\n  \n  </li></ul>\n</div>\n\n<p>ラボを開始するには、トラップ ブランチに切り替えます。\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ git fetch\n  $ git checkout traps\n  $ make clean\n  </code></pre>\n\n<h2 id=\"risc-v-assembly\" data-section-number=\"01\">RISC-Vアセンブリ </h2>\n\n<p>少し理解することが重要になります\n RISC-V アセンブリ。6.1910 (6.004) で公開されました。ファイルがあります\n  <tt>user/call.c</tt> xv6 リポジトリ内にあります。  <kbd>make fs.img</kbd> それをコンパイルします\n また、プログラムの読み取り可能なアセンブリ バージョンも生成します。\n  <tt>user/call.asm</tt>。\n\n</p><p>call.asm 内の関数のコードを読み取ります。 <tt>g</tt>、 <tt>f</tt>、そして <tt>main</tt>。 \n指示\n RISC-V のマニュアルは、 <a href=\"https://pdos.csail.mit.edu/6.S081/2026/labs/reference.html\">参考ページ</a>。 \nで次の質問に答えてください <tt>answers-traps.txt</tt>:\n\n  </p><div class=\"lab-question\">\n    どのレジスタに関数の引数が含まれていますか? たとえば、どれ\n メインの呼び出しでレジスタは 13 を保持します <tt>printf</tt>?\n  </div>\n  \n  <div class=\"lab-question\">\n    関数の呼び出しはどこにありますか <tt>f</tt>\n    メインのアセンブリコード内にありますか？どこへの電話ですか <tt>g</tt>? (ヒント:\n コンパイラは関数をインライン化する場合があります。)\n  </div>\n  \n  <div class=\"lab-question\">\n    どのアドレスにありますか\n 機能 <tt>printf</tt> 位置していますか？\n  </div>\n\n  <div class=\"lab-question\">\n    レジスタにはどのような値があるのか <tt>ra</tt>\n    の直後 <tt>jalr</tt> に <tt>printf</tt> で <tt>main</tt>?\n  </div>\n\n  <div class=\"lab-question\">\n    <p>次のコードを実行します。\n      </p><pre data-language=\"c\" tabindex=\"0\"><code class=\"hljs language-c\">\t<span class=\"hljs-type\">unsigned</span> <span class=\"hljs-type\">int</span> i = <span class=\"hljs-number\">0x00646c72</span>;\n\t<span class=\"hljs-built_in\">printf</span>(<span class=\"hljs-string\">\"H%x Wo%s\"</span>, <span class=\"hljs-number\">57616</span>, (<span class=\"hljs-type\">char</span> *) &amp;i);\n      </code></pre>\n      出力は何ですか?\n      <a href=\"https://www.asciitable.com/\" class=\"external-link\" rel=\"noreferrer\">これがASCIIです\n テーブル</a> バイトを文字にマッピングします。\n\n    <p>出力は、RISC-V が\n リトルエンディアン。 RISC-V がビッグエンディアンだったらどうなるでしょうか\n あなたが設定した <code>i</code> 同じ出力を得るには?\n 変更する必要がありますか\n      <code>57616</code> 別の値にしますか？</p>\n\n    <p>\n      <a href=\"http://www.webopedia.com/TERM/b/big_endian.html\" class=\"external-link\" rel=\"noreferrer\">こちらです\n リトルエンディアンとビッグエンディアンの説明</a>\n      そして\n      <a href=\"https://www.rfc-editor.org/ien/ien137.txt\" class=\"external-link\" rel=\"noreferrer\">もっと\n 風変わりな説明</a>。\n    </p>\n\n  </div>\n\n  <div class=\"lab-question\">\n    <p>次のコードでは、その後に何が出力されますか\n      <code>'y='</code>? (注: 答えは特定の値ではありません。)\n これは起こりますか？\n\n      </p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">\tprintf(\"x=%d y=%d\", 3);\n      </code></pre>\n  </div>\n\n\n  <h2 id=\"backtrace\" data-section-number=\"02\">バックトレース </h2>\n\n <p>デバッグの場合、バックトレース、つまりリストがあると便利なことがよくあります。 \nポイントより上のスタック上の関数呼び出しの数\n エラーが発生した場所。 \nバックトレースを支援するために、コンパイラーはスタックを維持するマシンコードを生成します。 \nの各関数に対応するスタック上のフレーム\n 現在の呼び出しチェーン。各スタック フレームはリターンで構成されます。 \nアドレスと、呼び出し元のスタック フレームへの「フレーム ポインター」。登録する\n  <tt>s0</tt> 現在のスタック フレームへのポインタが含まれます\n (実際には、保存された返信先アドレスのアドレスを指します)\n スタックに 8 を加えたもの)。 \nあなたの <tt>backtrace</tt>\n  フレーム ポインタを使用してスタックを上に移動し、\n 各スタックフレームに保存された戻りアドレス。\n\n</p><div class=\"lab-required\">\n<p>\n  を実装します。 <tt>backtrace()</tt> 機能\n で <tt>kernel/printf.c</tt>。 この関数への呼び出しを挿入します\n で <tt>sys_pause</tt>、そして実行します <kbd>bttest</kbd>、どれ\n 電話 <tt>sys_pause</tt>。 \n出力は、次の形式の返信先アドレスのリストになります (ただし、数値は異なる可能性があります)。\n  </p><pre data-language=\"x86asm\" tabindex=\"0\"><code class=\"hljs language-x86asm\"><span class=\"hljs-symbol\">    backtrace:</span>\n    <span class=\"hljs-number\">0x0000000080002cda</span>\n    <span class=\"hljs-number\">0x0000000080002bb6</span>\n    <span class=\"hljs-number\">0x0000000080002898</span>\n  </code></pre>\n  後 <tt>bttest</tt> qemuを終了します。ターミナル ウィンドウで:\n 走る <tt>addr2line -e kernel/kernel</tt> (または <tt>riscv64-unknown-elf-addr2line -e kernel/kernel</tt>) そして、次のようにバックトレースからアドレスをカットアンドペーストします。\n  <pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">    $ addr2line -e kernel/kernel\n    0x0000000080002de2\n    0x0000000080002f4a\n    0x0000000080002bfc\n    Ctrl-D\n  </code></pre>\n  次のようなものが表示されるはずです。\n  <pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">    kernel/sysproc.c:74\n    kernel/syscall.c:224\n    kernel/trap.c:85\n  </code></pre>\n</div>\n\n<p>いくつかのヒント:\n </p><ul>\n <li>プロトタイプを追加します <tt>backtrace()</tt> に <tt>kernel/defs.h</tt> それで\n あなたは呼び出すことができます <tt>backtrace</tt> で <tt>sys_pause</tt>。\n </li><li>GCC コンパイラは、現在のフレーム ポインタを保存します。 \nで関数を実行する\n 登録する <tt>s0</tt>。 #ifndef __ASSEMBLER__ ... #endif でマークされたセクションに、次の関数を追加します\n に <tt>kernel/riscv.h</tt>:\n <pre data-language=\"c\" tabindex=\"0\"><code class=\"hljs language-c\"><span class=\"hljs-type\">static</span> <span class=\"hljs-keyword\">inline</span> uint64\n<span class=\"hljs-title function_\">r_fp</span><span class=\"hljs-params\">()</span>\n{\n  uint64 x;\n  <span class=\"hljs-keyword\">asm</span> <span class=\"hljs-title function_\">volatile</span><span class=\"hljs-params\">(<span class=\"hljs-string\">\"mv %0, s0\"</span> : <span class=\"hljs-string\">\"=r\"</span> (x) )</span>;\n  <span class=\"hljs-keyword\">return</span> x;\n}</code></pre>\n そしてこの関数を呼び出します <tt>backtrace</tt> 現在のフレーム ポインタを読み取ります。  <tt>r_fp()</tt> 用途 <a href=\"https://gcc.gnu.org/onlinedocs/gcc/Using-Assembly-Language-with-C.html\" class=\"external-link\" rel=\"noreferrer\">インライン\n アセンブリ</a> 読む <tt>s0</tt>。\n </li><li>これら\n <a href=\"https://pdos.csail.mit.edu/6.1810/2023/lec/l-riscv.txt\">講義\n メモ</a> スタック フレームのレイアウトの図があります。注意してください。 \n戻りアドレスは、フレーム ポインタからの固定オフセット (-8) にあります。 \nstackframe と、保存されたフレーム ポインターがフレーム ポインターからの固定オフセット (-16) に存在すること。\n </li><li>あなたの <tt>backtrace()</tt> それを認識する方法が必要になる\n 最後のスタック フレームを確認したので、停止する必要があります。 \n有益な事実は、各カーネルに割り当てられるメモリ\n スタックは単一のページ位置に配置されたページで構成されます。 \n特定のスタックのすべてのスタック フレームが\n 同じページにいます。 \n使用できます\n <tt>PGROUNDDOWN(fp)</tt>\n (参照 <tt>kernel/riscv.h</tt>) を識別するため\n フレームポインタが参照するページ。\n </li></ul>\n\n<p>バックトレースが機能したら、次から呼び出します。 <tt>panic</tt>\n  で <tt>kernel/printf.c</tt> カーネルのバックトレースが表示されるようにする\n パニックになったとき。\n\n</p><h2 id=\"alarm\" data-section-number=\"03\">アラーム </h2>\n\n<div class=\"lab-required\">\n<p>\nこの演習では、定期的に警告を発する機能を xv6 に追加します。\nCPU 時間を使用するプロセス。これはコンピューティングに依存する場合に役立つ可能性があります\nCPU 時間を制限したいプロセス、または\n計算を行いたいが、定期的な処理も必要とするプロセス\nアクション。より一般的には、次の原始的な形式を実装することになります。\nユーザーレベルの割り込み/障害ハンドラー。同様のものを使用できます\nたとえば、アプリケーションでページ フォールトを処理するためです。 あなたの解決策\nalarmtest と 'usertests -q' に合格した場合は正しいです。\n</p></div>\n\n<p>\n新しいものを追加する必要があります <tt>sigalarm(interval, handler)</tt> システムコール。\nアプリケーションが呼び出す場合 <tt>sigalarm(n, fn)</tt>、その後毎回\n<tt>n</tt> プログラムが消費する CPU 時間の「ティック」、カーネル\nアプリケーション機能を引き起こすはずです\n<tt>fn</tt> 呼ばれることに。いつ <tt>fn</tt> アプリケーションが返される\n中断したところから再開する必要があります。ティックはかなり任意の単位です。\nxv6 での時間。ハードウェア タイマーが生成する頻度によって決まります。\n中断します。\nアプリケーションが呼び出す場合 <tt>sigalarm(0, 0)</tt>、カーネルは次のようにする必要があります\n定期的なアラームコールの生成を停止します。\n\n</p><p>\nファイルが見つかります <tt>user/alarmtest.c</tt> あなたのxv6で\nリポジトリ。それを Makefile に追加します。正しくコンパイルされません\n追加するまで <tt>sigalarm</tt> そして <tt>sigreturn</tt>\nシステムコール (以下を参照)。\n\n</p><p>\n<tt>alarmtest</tt> 電話 <tt>sigalarm(2, periodic)</tt>\nで <tt>test0</tt> カーネルに強制的に呼び出しを依頼する\nに <tt>periodic()</tt> 2 ティックごとに、その後しばらく回転します。 あなた\nuser/alarmtest.asm でアラームテストのアセンブリ コードを確認できます。\nデバッグに便利かもしれません。 あなたの解決策が正しいのは次の場合です\n<tt>alarmtest</tt> 次のような出力が生成され、usertest -q も実行されます\n正しく:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ alarmtest\ntest0 start\n........alarm!\ntest0 passed\ntest1 start\n...alarm!\n..alarm!\n...alarm!\n..alarm!\n...alarm!\n..alarm!\n...alarm!\n..alarm!\n...alarm!\n..alarm!\ntest1 passed\ntest2 start\n................alarm!\ntest2 passed\ntest3 start\ntest3 passed\n$ usertests -q\n...\nALL TESTS PASSED\n$</code></pre>\n\n<p>完了すると、ソリューションはわずか数行のコードになります。 \nしかし、それを正しく理解するのは難しいかもしれません。コードをテストします。 \n元のリポジトリ内のalarmtest.cのバージョン。変更できます\n デバッグに役立つalarmtest.cですが、元のalarmtestを確認してください。 \nすべてのテストに合格したと言います。\n\n</p><h3 id=\"test0-invoke-handler\" data-section-number=\"03.1\">test0: ハンドラーの呼び出し</h3>\n\n<p>まず、アラーム ハンドラーにジャンプするようにカーネルを変更します。\nこれにより、test0 は「alarm!」を出力します。まだ心配しないでください\n「アラーム！」の後に何が起こるのか？出力;今のところは大丈夫です\n「alarm!」を出力した後にプログラムがクラッシュする。以下にいくつかのヒントを示します。\n\n</p><ul>\n\n<li>Makefile を変更する必要があります。 <tt>alarmtest.c</tt>\nxv6 ユーザープログラムとしてコンパイルされます。\n\n</li><li>入れる適切な宣言 <tt>user/user.h</tt> は:\n<pre data-language=\"c\" tabindex=\"0\"><code class=\"hljs language-c\">    <span class=\"hljs-type\">int</span> <span class=\"hljs-title function_\">sigalarm</span><span class=\"hljs-params\">(<span class=\"hljs-type\">int</span> ticks, <span class=\"hljs-type\">void</span> (*handler)())</span>;\n    <span class=\"hljs-type\">int</span> <span class=\"hljs-title function_\">sigreturn</span><span class=\"hljs-params\">(<span class=\"hljs-type\">void</span>)</span>;</code></pre>\n\n</li><li>user/usys.pl を更新します (user/usys.S を生成します)。 \nkernel/syscall.h、および kernel/syscall.c\n 許可する <tt>alarmtest</tt> シガアームを発動し、\n sigreturn システムコール。\n\n</li><li>今のところ、あなたの <tt>sys_sigreturn</tt> ゼロを返すだけです。\n\n</li><li>あなたの <tt>sys_sigalarm()</tt> アラーム間隔を保存する必要があります。\nの新しいフィールドのハンドラー関数へのポインター <tt>proc</tt>\n構造（で <tt>kernel/proc.h</tt>）。\n\n</li><li>から経過したティック数を追跡する必要があります。\nプロセスのアラームへの最後の呼び出し (または次の呼び出しまで残される)\nハンドラー;新しいフィールドが必要になります <tt>struct&nbsp;proc</tt> このために\nも。 初期化できるよ <tt>proc</tt> のフィールド <tt>allocproc()</tt>\nで <tt>proc.c</tt>。\n\n</li><li>ティックごとに、ハードウェア クロックによって強制的に割り込みが発生し、割り込みが処理されます。\nで <tt>usertrap()</tt> で <tt>kernel/trap.c</tt>。\n\n\n</li><li>プロセスのアラーム ティックを操作したいのは、\n タイマー割り込み。あなたは次のようなものが欲しいです\n<pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">    if(which_dev == 2) ...</code></pre>\n\n</li><li>プロセスにアラーム機能がある場合にのみアラーム機能を呼び出します。 \nタイマー未使用。 ユーザーのアラームのアドレスに注意してください。 \nfunction は 0 になる可能性があります (例: user/alarmtest.asm、 <tt>periodic</tt> にあります\n アドレス0）。\n\n </li><li>変更する必要があります\n  <tt>usertrap()</tt> そのため、\n プロセスのアラーム間隔が期限切れになると、ユーザー プロセスが実行されます\n ハンドラー関数。 \nRISC-V 上のトラップがユーザー空間に戻るとき、何が決定するか\n ユーザー空間コードが実行を再開する命令アドレス?\n\n</li><li>qemu に次のように指示すると、gdb でトラップを調べるのが簡単になります。\nCPU を 1 つだけ使用します。これは、次のコマンドを実行して実行できます。\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">    make CPUS=1 qemu-gdb</code></pre>\n\n</li><li>alarmtest が「alarm!」と出力すれば成功です。\n\n</li></ul>\n\n<h3 id=\"test1test2test3-resume-interrupted-code\" data-section-number=\"03.2\">test1/test2()/test3(): 中断されたコードを再開します</h3>\n\n<p>警告テストは、出力後に test0 または test1 でクラッシュする可能性があります。\n「アラーム!」、またはそのアラームテストが (最終的には) 「test1 failed」と出力します。\nまたは、alarmtest が「test1 に合格しました」を出力せずに終了します。\nこれを修正するには、次のことを行う必要があります\nアラーム ハンドラーが完了したら、\n制御が戻ります\nユーザープログラムが元々あった命令\nタイマー割り込みにより中断されました。次のことを確認する必要があります\nレジスタの内容は保持されていた値に復元されます\n割り込み時にユーザープログラムが\nアラーム後も平穏に作業を続けることができます。\n最後に、\nアラームカウンターが鳴るたびに、アラームカウンターを「再作動」する必要があります\nオフにすると、ハンドラーが定期的に呼び出されます。\n\n</p><p>出発点として、次のような設計上の決定を行いました。\nユーザー アラーム ハンドラは、 <tt>sigreturn</tt>\n完了時にシステムコールが呼び出されます。見てください\n<tt>periodic</tt> で <tt>alarmtest.c</tt> たとえば。\nこれは、コードを追加できることを意味します <tt>usertrap</tt> そして\n<tt>sys_sigreturn</tt> 協力してユーザーを引き起こす\nアラームを処理した後にプロセスが適切に再開されるようにします。\n\n\n</p><p>\n  いくつかのヒント:\n  </p><ul>\n    <li>ソリューションでは保存と復元が必要です\n レジスタ --- 再開するにはどのレジスタを保存および復元する必要がありますか\n 中断されたコードは正しく表示されていますか? (ヒント: たくさんあります)。\n    </li><li>持っています <tt>usertrap</tt> 十分な状態を保存する\n      <tt>struct proc</tt> タイマーが鳴ったとき\n それ <tt>sigreturn</tt> に正しく戻ることができます\n ユーザーコードが中断されました。\n\n    </li><li>ハンドラーへの再入呼び出しを防止します -- ハンドラーが再入呼び出しを禁止していない場合\n まだ返されていない場合、カーネルはそれを再度呼び出すべきではありません。 <tt>test2</tt>\n      これをテストします。\n\n    </li><li>必ずa0を復元してください。  <tt>sigreturn</tt> システムコールです、\n その戻り値は a0 に格納されます。\n      \n  </li></ul>\n\n\n\n\n<p>通過したら <tt>test0</tt>、 <tt>test1</tt>、 <tt>test2</tt>、そして <tt>test3</tt>\n  走る <tt>usertests -q</tt> 他の部分を壊していないことを確認するため\n カーネルの。\n\n\n<!-- START SECTION: submit -->\n</p><p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"04\">ラボを送信する</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"04.1\">費やした時間</h3>\n\n<p>新しいファイルを作成し、 <tt>time.txt</tt>、単一の整数を入力すると、\nラボに費やした時間数。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> ファイル。\n\n</p><h3 id=\"answers\" data-section-number=\"04.2\">答え</h3>\n\n<p>このラボに質問がある場合は、回答を次の場所に記入してください <tt>answers-*.txt</tt>。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> これらのファイル。\n\n</p><h3 id=\"submit\" data-section-number=\"04.3\">送信する</h3>\n\n<p>課題の提出は Gradescope によって処理されます。\nMIT グレードスコープ アカウントが必要です。\nクラスに参加するためのエントリー コードについては、Piazza を参照してください。\n使用する <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">このリンク</a>\n参加にさらにサポートが必要な場合。\n\n</p><p>送信する準備ができたら、実行します <kbd>make zipball</kbd>、\n生成するもの <tt>lab.zip</tt>。\nこの zip ファイルを対応する Gradescope 課題にアップロードします。\n\n</p><p> 走れば <kbd>make zipball</kbd> コミットされていない変更があるか、\n追跡されていないファイルの場合は、次のような出力が表示されます。\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\n上記の行を調べて、ラボ ソリューションに必要なすべてのファイルを確認してください。\n追跡されます。つまり、で始まる行にはリストされません。 <tt>??</tt>。\nあなたが引き起こすことができます <tt>git</tt> を使用して作成した新しいファイルを追跡するには\n<kbd>git add {filename}</kbd>。\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>走ってください <kbd>make grade</kbd> コードがすべてのテストに合格することを確認します。 \nGradescope 自動採点機能は、同じ採点プログラムを使用して提出物に成績を割り当てます。</li>\n  <li>実行前に変更したソース コードをコミットする <kbd>make zipball</kbd>。</li>\n  <li>提出物のステータスを確認し、提出済みのファイルをダウンロードできます。 \nGradescope のコード。 Gradescope のラボ成績が最終的なラボ成績です。</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercises\" data-section-number=\"05\">オプションのチャレンジ演習</h2>\n\n<ul>\n\n  <li>関数の名前と行番号を出力します。 \nで <tt>backtrace()</tt> 数値の代わりに\n アドレス。</li>\n\n</ul>\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 5,
+    "h3": 5,
+    "paragraphs": 31,
+    "codeBlocks": 12,
+    "links": 8,
+    "lists": 6,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 5,
+    "h3": 5,
+    "paragraphs": 31,
+    "codeBlocks": 12,
+    "links": 8,
+    "lists": 6,
+    "tables": 0,
+    "figures": 0
+  }
+}

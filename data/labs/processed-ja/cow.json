@@ -1,0 +1,79 @@
+{
+  "slug": "cow",
+  "title": "ラボ: xv6 のコピーオンライト フォーク",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/cow.html",
+  "fetchedAt": "2026-09-17T03:57:23.896Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "the-problem",
+      "text": "問題",
+      "number": "01"
+    },
+    {
+      "depth": 2,
+      "id": "the-solution",
+      "text": "解決策",
+      "number": "02"
+    },
+    {
+      "depth": 2,
+      "id": "implement-copy-on-write-fork",
+      "text": "COW までのパッチ適用\n家に帰ってください",
+      "number": "03"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "ラボを送信する",
+      "number": "04"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "費やした時間",
+      "number": "04.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "答え",
+      "number": "04.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "送信する",
+      "number": "04.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercise",
+      "text": "オプションのチャレンジ演習",
+      "number": "05"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-copy-on-write-fork-for-xv6\">ラボ: xv6 のコピーオンライト フォーク</h1>\n\n<p> ラボ: xv6 のコピーオンライト フォーク\n    \n</p><p>ラボ: xv6 のコピーオンライト フォーク\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ git fetch\n$ git checkout cow\n$ make clean</code></pre>\n\n<h2 id=\"the-problem\" data-section-number=\"01\">問題</h2>\n\nxv6 の fork() システム コールは、親プロセスのすべてをコピーします。\nユーザー空間メモリを子に取り込みます。親が大きい場合、コピーは可能です。\n長い時間がかかります。さらに悪いことに、作業の大部分が無駄になることがよくあります。\nfork() の後には子で exec() が続くのが一般的です。\nコピーされたメモリを、通常はほとんど使用せずに破棄します。\n一方、親と子の両方がコピーしたページを使用し、一方または両方が\nと書いているので、コピーは本当に必要です。\n\n<h2 id=\"the-solution\" data-section-number=\"02\">解決策</h2>\n\nコピーオンライト (COW) fork() を実装する際の目標は、割り当てを延期し、\n実際にコピーが行われるまで、物理メモリ ページをコピーします。\n必要であれば。\n\n<p>\nCOW fork() は、ユーザーの PTE を含む、子のページテーブルのみを作成します。\n親の物理ページを指すメモリ。 COW fork() はすべてをマークします\nユーザー PTE は親と子の両方で読み取り専用になります。どちらかのとき\nプロセスがこれらの COW ページの 1 つに書き込もうとすると、CPU は強制的に\nページフォルト。カーネルのページフォールトハンドラーはこのケースを検出し、\n障害が発生したプロセスの物理メモリのページをコピーします。\n元のページを新しいページに変換し、関連する PTE を変更します。\n新しいページを参照する障害プロセス (今回は PTE を使用)\n書き込み可能とマークされています。ページフォールトハンドラーが戻ると、ユーザーは\nプロセスはページのコピーを書き込むことができるようになります。\n\n</p><p>\nCOW fork() は、ユーザーを実装する物理ページを解放します。\n記憶は少し複雑です。特定の物理ページは、次の方法で参照できます。\n複数のプロセスのページ テーブルが存在するため、次の場合にのみ解放する必要があります。\n最後の参照が消えます。 xv6 のような単純なカーネルではこれ\n簿記はかなり単純ですが、実稼働カーネルでは\nこれを正しく理解するのは難しい場合があります。たとえば、次を参照してください。\n<a href=\"https://lwn.net/Articles/849638/\" class=\"external-link\" rel=\"noreferrer\">COW までのパッチ適用\n家に帰ってください</a>COW までのパッチ適用\n家に帰ってください\n\n</p><h2 id=\"implement-copy-on-write-fork\" data-section-number=\"03\">COW までのパッチ適用\n家に帰ってください</h2>\n\n<p>\n</p><div class=\"lab-required\">\nあなたのタスクは、xv6 カーネルにコピーオンライト フォークを実装することです。あなたは\n変更したカーネルが Cowtest と 'usertests -q' の両方を実行すると完了します。\nプログラムが成功しました。\n</div>\n\n<p>実装のテストに役立つように、xv6 プログラムを提供しました。\nCowtest と呼ばれます (ソースは user/cowtest.c にあります)。 Cowtest はさまざまなテストを実行しますが、\n最初のものも未修正の xv6 では失敗します。したがって、最初は、あなたは\n表示されます:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ cowtest\nsimple: fork() failed\n$ </code></pre>\n\n実装のテストに役立つように、xv6 プログラムを提供しました。\nCowtest と呼ばれます (ソースは user/cowtest.c にあります)。 Cowtest はさまざまなテストを実行しますが、\n最初のものも未修正の xv6 では失敗します。したがって、最初は、あなたは\n表示されます:\n\n<p>\n完了すると、カーネルは Cowtest と Cowtest の両方のすべてのテストに合格するはずです。\nユーザーテスト -q.つまり:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ cowtest\nsimple: ok\nsimple: ok\nthree: ok\nthree: ok\nthree: ok\nfile: ok\nforkfork: ok\nALL COW TESTS PASSED\n$ usertests -q\n...\nALL TESTS PASSED\n$</code></pre>\n\n<p>\nこれが合理的な攻撃計画です。\n\n</p><ol>\n\n<li> uvmcopy() を変更して、親の物理ページを\n新しいページを割り当てる代わりに、子を作成します。クリア <tt>PTE_W</tt> で\n次のページの子と親の両方の PTE <tt>PTE_W</tt> セット。\n\n  \n</li><li> セット。 <tt>PTE_W</tt>\nセット。 <tt>PTE_W</tt>セット。\n\n</li><li> 最後の PTE が終了したときに各物理ページが解放されるようにする\nそれへの参照はなくなりますが、以前ではありません。\nこれを行う良い方法は、物理ページごとに「参照カウント」を保持することです。\nそのページを参照するユーザー ページ テーブルの数。\n次の場合にページの参照カウントを 1 に設定します。 <tt>kalloc()</tt> それを割り当てます。\nページの参照カウントを増やす\nフォークによって子供がページを共有したとき、そして\nプロセスがドロップされるたびにページ数をデクリメントします\nページテーブルからページを取得します。\n<tt>kfree()</tt> 次の場合にのみ、ページを空きリストに戻す必要があります。\n参照カウントはゼロです。 これらのカウントを保存しておいても問題ありません。\n整数の固定サイズ配列。 計画を立てる必要があります\n配列にインデックスを付ける方法とそのサイズを選択する方法。たとえば、あなたは\nページの物理アドレスを次の値で割った値で配列にインデックスを付けることができます。\n4096 を使用し、最大値に等しい要素数を配列に与えます。\nフリーリストに掲載されているページの物理アドレス\nによって <tt>kinit()</tt> kalloc.c にあります。 kalloc.c を自由に変更してください。\n(例: <tt>kalloc()</tt> そして <tt>kfree()</tt>）を維持するために、\n参照カウント。\n\n</li><li> copyout() を変更して、\nCOW ページに遭遇したときのページ フォールトと同じスキームです。\n\n</li></ol>\n\n<p>いくつかのヒント:\n\n  </p><ul>\n    \n<li>\n各 PTE について、それが\nCOW マッピング。 RSW (ソフトウェア用に予約) ビットを使用できます。\nこれには RISC-V PTE が必要です。\n\n</li><li>\n<tt>usertests -q</tt> というシナリオを検討します <tt>cowtest</tt> テストはしませんが、\nしたがって、両方のテストがすべてパスすることを確認することを忘れないでください。\n\n</li><li>ページ テーブル フラグのいくつかの便利なマクロと定義は、次の場所にあります。\n終わりの <tt>kernel/riscv.h</tt>。\n\n</li><li>COW ページフォールトが発生し、空きメモリがない場合、プロセスは\n殺されるべきだ。\n\n  </li></ul>\n  \n<!-- START SECTION: submit -->\n<p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"04\">ラボを送信する</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"04.1\">費やした時間</h3>\n\n<p>新しいファイルを作成し、 <tt>time.txt</tt>、単一の整数を入力すると、\nラボに費やした時間数。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> ファイル。\n\n</p><h3 id=\"answers\" data-section-number=\"04.2\">答え</h3>\n\n<p>このラボに質問がある場合は、回答を次の場所に記入してください <tt>answers-*.txt</tt>。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> これらのファイル。\n\n</p><h3 id=\"submit\" data-section-number=\"04.3\">送信する</h3>\n\n<p>課題の提出は Gradescope によって処理されます。\nMIT グレードスコープ アカウントが必要です。\nクラスに参加するためのエントリー コードについては、Piazza を参照してください。\n使用する <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">このリンク</a>\n参加にさらにサポートが必要な場合。\n\n</p><p>送信する準備ができたら、実行します <kbd>make zipball</kbd>、\n生成するもの <tt>lab.zip</tt>。\nこの zip ファイルを対応する Gradescope 課題にアップロードします。\n\n</p><p> 走れば <kbd>make zipball</kbd> コミットされていない変更があるか、\n追跡されていないファイルの場合は、次のような出力が表示されます。\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\n上記の行を調べて、ラボ ソリューションに必要なすべてのファイルを確認してください。\n追跡されます。つまり、で始まる行にはリストされません。 <tt>??</tt>。\nあなたが引き起こすことができます <tt>git</tt> を使用して作成した新しいファイルを追跡するには\n<kbd>git add {filename}</kbd>。\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>走ってください <kbd>make grade</kbd> コードがすべてのテストに合格することを確認します。 \nGradescope 自動採点機能は、同じ採点プログラムを使用して提出物に成績を割り当てます。</li>\n  <li>実行前に変更したソース コードをコミットする <kbd>make zipball</kbd>。</li>\n  <li>提出物のステータスを確認し、提出済みのファイルをダウンロードできます。 \nGradescope のコード。 Gradescope のラボ成績が最終的なラボ成績です。</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercise\" data-section-number=\"05\">オプションのチャレンジ演習</h2>\n\n<ul>\n\n  <li>COW の実装によって数値がどの程度削減されるかを測定する\n xv6 がコピーするバイト数と、割り当てられる物理ページの数。 \nこれらの数をさらに削減する機会を見つけて活用してください。\n\n</li></ul>\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 5,
+    "h3": 3,
+    "paragraphs": 17,
+    "codeBlocks": 4,
+    "links": 2,
+    "lists": 4,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 5,
+    "h3": 3,
+    "paragraphs": 17,
+    "codeBlocks": 4,
+    "links": 2,
+    "lists": 4,
+    "tables": 0,
+    "figures": 0
+  }
+}

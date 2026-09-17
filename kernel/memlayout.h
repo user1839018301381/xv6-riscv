@@ -1,35 +1,36 @@
-// Physical memory layout
+// 物理メモリ配置
 
-// qemu -machine virt is set up like this,
-// based on qemu's hw/riscv/virt.c:
+// qemuの-machine virtは次のように設定されている。
+// qemuのhw/riscv/virt.cに基づく:
 //
-// 00001000 -- boot ROM, provided by qemu
+//
+// 00001000 -- ブートROM、qemuが提供
 // 02000000 -- CLINT
 // 0C000000 -- PLIC
 // 10000000 -- uart0
-// 10001000 -- virtio disk
-// 80000000 -- qemu's boot ROM loads the kernel here,
-//             then jumps here.
-// unused RAM after 80000000.
+// 10001000 -- virtioディスク
+// 80000000 -- qemuのブートROMはカーネルをここに読み込み、
+//             ここへジャンプする。
+// 80000000以降は未使用RAM。
 
-// the kernel uses physical memory thus:
-// 80000000 -- entry.S, then kernel text and data
-// end -- start of kernel page allocation area
-// PHYSTOP -- end RAM used by the kernel
+// カーネルは物理メモリを次のように使う:
+// 80000000 -- entry.S、続いてカーネルのテキストとデータ
+// end -- カーネル用ページ割当て領域の開始
+// PHYSTOP -- カーネルが使うRAMの終端
 
-// qemu puts UART registers here in physical memory.
+// qemuはUARTレジスタを物理メモリのここに配置する。
 #define UART0     0x10000000L
 #define UART0_IRQ 10
 
-// virtio mmio interface
+// virtio MMIOインタフェース
 #define VIRTIO0     0x10001000
 #define VIRTIO0_IRQ 1
 
-// core-local interrupt controller (CLINT)
+// コアローカル割込みコントローラ（CLINT）
 #define CLINT_BASE  0x02000000L
 #define CLINT(hart) (CLINT_BASE + (hart) * 4)
 
-// qemu puts platform-level interrupt controller (PLIC) here.
+// qemuはプラットフォームレベル割り込みコントローラ(PLIC)をここに配置する。
 #define PLIC                 0x0c000000L
 #define PLIC_PRIORITY        (PLIC + 0x0)
 #define PLIC_PENDING         (PLIC + 0x1000)
@@ -37,27 +38,25 @@
 #define PLIC_SPRIORITY(hart) (PLIC + 0x201000 + (hart) * 0x2000)
 #define PLIC_SCLAIM(hart)    (PLIC + 0x201004 + (hart) * 0x2000)
 
-// the kernel expects there to be RAM
-// for use by the kernel and user pages
-// from physical address 0x80000000 to PHYSTOP.
+// カーネルは物理アドレス0x80000000からPHYSTOPまでに、
+// カーネルページとユーザページ用のRAMがあることを想定する。
 #define KERNBASE 0x80000000L
 #define PHYSTOP  (KERNBASE + 128 * 1024 * 1024)
 
-// map the trampoline page to the highest address,
-// in both user and kernel space.
+// ユーザ空間とカーネル空間の両方で、トランポリンページを最高アドレスにマップする。
 #define TRAMPOLINE (MAXVA - PGSIZE)
 
-// map kernel stacks beneath the trampoline,
-// each surrounded by invalid guard pages.
+// トランポリンの下にカーネルスタックをマップし、
+// それぞれをアクセス不能なガードページで囲む。
 #define KSTACK(p) (TRAMPOLINE - ((p) + 1) * 2 * PGSIZE)
 
-// User memory layout.
-// Address zero first:
-//   text
-//   original data and bss
-//   fixed-size stack
-//   expandable heap
+// ユーザメモリの配置。
+// アドレス0から順に:
+//   テキスト
+//   初期データとbss
+//   固定サイズのスタック
+//   拡張可能なヒープ
 //   ...
-//   TRAPFRAME (p->trapframe, used by the trampoline)
-//   TRAMPOLINE (the same page as in the kernel)
+//   TRAPFRAME (p->trapframe、トランポリンが使用)
+//   TRAMPOLINE (カーネルと同じページ)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)

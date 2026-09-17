@@ -1,0 +1,51 @@
+---
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import ArticleToc from '../../components/ArticleToc.astro';
+import SourceMeta from '../../components/SourceMeta.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { LABS, LAB_JA_PROCESSED_DIR } from '../../../scripts/lib/config.ts';
+import { restoreLabCodeHeadings, restoreLabHeading, restoreLabTitle } from '../../../scripts/lib/ja-code.ts';
+import type { ProcessedLab } from '../../../scripts/lib/types.ts';
+
+export async function getStaticPaths() {
+  return Promise.all(LABS.map(async (item) => ({
+    params: { slug: item.slug },
+    props: {
+      item,
+      lab: JSON.parse(await readFile(path.join(LAB_JA_PROCESSED_DIR, `${item.slug}.json`), 'utf8')) as ProcessedLab
+    }
+  })));
+}
+
+const { item, lab } = Astro.props;
+const labIndex = LABS.findIndex((entry) => entry.slug === item.slug);
+const previous = labIndex > 0 ? LABS[labIndex - 1] : undefined;
+const next = labIndex < LABS.length - 1 ? LABS[labIndex + 1] : undefined;
+const labTitle = restoreLabTitle(lab.title);
+const labOutline = lab.outline.map((section) => ({ ...section, text: restoreLabHeading(section.id, section.text) }));
+const labHtml = restoreLabCodeHeadings(lab.html);
+---
+
+<BaseLayout title={labTitle} description={`${item.label}, MIT 6.1810 Fall 2026.`} lang="ja">
+  <div class="reader-grid reader-grid--lab">
+    <div class="lab-toc-column"><ArticleToc title="Lab contents" items={labOutline} /></div>
+
+    <article class="reader-main">
+      <header class="article-header">
+        <p class="article-kicker">Lab {String(labIndex + 1).padStart(2, '0')} · Fall 2026</p>
+        <h1>{labTitle}</h1>
+        <p>{item.label}</p>
+      </header>
+      <ArticleToc items={labOutline} />
+      <div class="prose" set:html={labHtml} />
+      <SourceMeta source="MIT 6.1810 official Lab page" sourceUrl={lab.source} fetchedAt={lab.fetchedAt} />
+
+      <nav class="page-turner" aria-label="Adjacent Labs">
+        <span>{previous && <a href={`/labs/${previous.slug}/`}><span>Previous Lab</span><strong>{previous.label}</strong></a>}</span>
+        <span>{next && <a href={`/labs/${next.slug}/`}><span>Next Lab</span><strong>{next.label}</strong></a>}</span>
+      </nav>
+    </article>
+
+  </div>
+</BaseLayout>

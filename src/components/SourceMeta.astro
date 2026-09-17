@@ -1,0 +1,20 @@
+---
+interface Props {
+  source: string;
+  sourceUrl?: string;
+  fetchedAt?: string;
+  commit?: string;
+}
+
+const { source, sourceUrl, fetchedAt, commit } = Astro.props;
+const date = fetchedAt ? new Intl.DateTimeFormat('en-CA', { dateStyle: 'medium' }).format(new Date(fetchedAt)) : undefined;
+---
+
+<footer class="source-meta">
+  <p>
+    Source:
+    {sourceUrl ? <a href={sourceUrl} class="external-link" rel="noreferrer">{source}</a> : source}
+    {date && <><span aria-hidden="true"> · </span>Fetched: <time datetime={fetchedAt}>{date}</time></>}
+    {commit && <><span aria-hidden="true"> · </span>Commit: <code>{commit.slice(0, 12)}</code></>}
+  </p>
+</footer>

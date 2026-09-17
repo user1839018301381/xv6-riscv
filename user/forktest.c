@@ -1,5 +1,5 @@
-// Test that fork fails gracefully.
-// Tiny executable so that the limit can be filling the proc table.
+// fork が正常に失敗することをテストする。
+// プロセス表を埋め尽くすことが上限になるよう、小さな実行ファイルにしている。
 
 #include "kernel/types.h"
 #include "kernel/stat.h"
@@ -7,50 +7,44 @@
 
 #define N 1000
 
-void
-print(const char *s)
+void print(const char *s) { write(1, s, strlen(s)); }
+
+void forktest(void)
 {
-  write(1, s, strlen(s));
-}
+    int n, pid;
 
-void
-forktest(void)
-{
-  int n, pid;
+    print("fork test\n");
 
-  print("fork test\n");
-
-  for (n = 0; n < N; n++) {
-    pid = fork();
-    if (pid < 0)
-      break;
-    if (pid == 0)
-      exit(0);
-  }
-
-  if (n == N) {
-    print("fork claimed to work N times!\n");
-    exit(1);
-  }
-
-  for (; n > 0; n--) {
-    if (wait(0) < 0) {
-      print("wait stopped early\n");
-      exit(1);
+    for (n = 0; n < N; n++) {
+        pid = fork();
+        if (pid < 0)
+            break;
+        if (pid == 0)
+            exit(0);
     }
-  }
 
-  if (wait(0) != -1) {
-    print("wait got too many\n");
-    exit(1);
-  }
+    if (n == N) {
+        print("fork claimed to work N times!\n");
+        exit(1);
+    }
 
-  print("fork test OK\n");
+    for (; n > 0; n--) {
+        if (wait(0) < 0) {
+            print("wait stopped early\n");
+            exit(1);
+        }
+    }
+
+    if (wait(0) != -1) {
+        print("wait got too many\n");
+        exit(1);
+    }
+
+    print("fork test OK\n");
 }
 
-int
-main(void)
+int main(void)
 {
-  forktest();
-  exit(0);
+    forktest();
+    exit(0);
 }

@@ -1,0 +1,38 @@
+{
+  "name": "xv6-local-reader",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "prebuild": "tsx scripts/build-search-index.ts && tsx scripts/verify-content.ts",
+    "build": "astro build",
+    "postbuild": "tsx scripts/verify-build.ts",
+    "preview": "astro preview",
+    "sync:labs": "tsx scripts/sync-labs.ts",
+    "sync:book": "tsx scripts/sync-book.ts",
+    "sync": "npm run sync:labs && npm run sync:book",
+    "translate:ja": "tsx scripts/translate-ja.ts",
+    "test": "tsx --test tests/**/*.test.ts",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.1",
+    "@fontsource-variable/bricolage-grotesque": "^5.2.8",
+    "@fontsource-variable/geist": "^5.2.8",
+    "@fontsource-variable/geist-mono": "^5.2.8",
+    "astro": "^7.3.3",
+    "cheerio": "^1.2.0",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.22",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@types/node": "^24.3.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.2"
+  }
+}

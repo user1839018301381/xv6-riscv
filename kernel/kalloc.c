@@ -1,6 +1,6 @@
-// Physical memory allocator, for user processes,
-// kernel stacks, page-table pages,
-// and pipe buffers. Allocates whole 4096-byte pages.
+// ユーザプロセス、カーネルスタック、ページテーブルページ、
+// パイプバッファ用の物理メモリアロケータ。
+// 4096バイト単位のページ全体を割り当てる。
 
 #include "types.h"
 #include "param.h"
@@ -11,72 +11,67 @@
 
 void freerange(void *pa_start, void *pa_end);
 
-extern char end[]; // first address after kernel.
-                   // defined by kernel.ld.
+extern char end[]; // カーネル直後の最初のアドレス。
+                   // kernel.ldで定義される。
 
 struct run {
-  struct run *next;
+    struct run *next;
 };
 
 struct {
-  struct spinlock lock;
-  struct run *freelist;
+    struct spinlock lock;
+    struct run *freelist;
 } kmem;
 
-void
-kinit()
+void kinit()
 {
-  initlock(&kmem.lock, "kmem");
-  freerange(end, (void *)PHYSTOP);
+    initlock(&kmem.lock, "kmem");
+    freerange(end, (void *)PHYSTOP);
 }
 
-void
-freerange(void *pa_start, void *pa_end)
+void freerange(void *pa_start, void *pa_end)
 {
-  char *p;
-  p = (char *)PGROUNDUP((uint64)pa_start);
-  for (; p + PGSIZE <= (char *)pa_end; p += PGSIZE)
-    kfree(p);
+    char *p;
+    p = (char *)PGROUNDUP((uint64)pa_start);
+    for (; p + PGSIZE <= (char *)pa_end; p += PGSIZE)
+        kfree(p);
 }
 
-// Free the page of physical memory pointed at by pa,
-// which normally should have been returned by a
-// call to kalloc().  (The exception is when
-// initializing the allocator; see kinit above.)
-void
-kfree(void *pa)
+// paが指す物理メモリのページを解放する。
+// 通常はkalloc()の呼び出しで返されたページである。
+// （アロケータ初期化時は例外。上のkinitを参照。）
+void kfree(void *pa)
 {
-  struct run *r;
+    struct run *r;
 
-  if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
-    panic("kfree");
+    if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
+        panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
+    // ダングリング参照を検出できるようゴミで埋める。
+    memset(pa, 1, PGSIZE);
 
-  r = (struct run *)pa;
+    r = (struct run *)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+    acquire(&kmem.lock);
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+    release(&kmem.lock);
 }
 
-// Allocate one 4096-byte page of physical memory.
-// Returns a pointer that the kernel can use.
-// Returns 0 if the memory cannot be allocated.
-void *
-kalloc(void)
+// 4096バイトの物理メモリページを1つ割り当てる。
+// カーネルが使えるポインタを返す。
+// メモリを割り当てられなければ0を返す。
+void *kalloc(void)
 {
-  struct run *r;
+    struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if (r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    acquire(&kmem.lock);
+    r = kmem.freelist;
+    if (r)
+        kmem.freelist = r->next;
+    release(&kmem.lock);
 
-  if (r)
-    memset((char *)r, 5, PGSIZE); // fill with junk
-  return (void *)r;
+    if (r)
+        memset((char *)r, 5, PGSIZE); // ゴミで埋める
+    return (void *)r;
 }

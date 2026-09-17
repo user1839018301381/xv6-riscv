@@ -1,0 +1,23 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { LABS } from '../../../scripts/lib/config.ts';
+---
+
+<BaseLayout title="Labs" description="MIT 6.1810 Fall 2026 Labs, preserved locally in a focused reading view.">
+  <div class="index-shell">
+    <header class="index-heading">
+      <h1>MIT 6.1810 Labs</h1>
+      <p>The Fall 2026 Lab set, cached from the official course pages and presented without changing the assignment content.</p>
+    </header>
+
+    <nav class="collection-links" aria-label="Labs">
+      {LABS.map((lab, index) => (
+        <a class="collection-link" href={`/labs/${lab.slug}/`}>
+          <span class="collection-link__number">{String(index + 1).padStart(2, '0')}</span>
+          <strong>{lab.label}</strong>
+          <span class="collection-link__meta">{lab.slug}</span>
+        </a>
+      ))}
+    </nav>
+  </div>
+</BaseLayout>

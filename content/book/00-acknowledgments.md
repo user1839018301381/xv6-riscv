@@ -1,0 +1,27 @@
+---
+title: "Foreword and acknowledgments"
+chapter: 0
+source: "xv6-riscv-book"
+sourceFile: "acks.tex"
+commit: "2d689eee47087bea267914123b8b1172583cbb0e"
+---
+This is a draft text intended for a class on operating systems. It explains the main concepts of operating systems by studying an example kernel, named xv6. Xv6 is modeled on Dennis Ritchie's and Ken Thompson's Unix Version 6 (v6) (Ritchie and Thompson 1974). Xv6 loosely follows the structure and style of v6, but is implemented in ANSI C (Kernighan 1988) for a multi-core RISC-V (Patterson and Waterman 2017).
+
+This text should be read along with the source code for xv6, an approach inspired by John Lions' Commentary on UNIX 6th Edition (Lions 2000); the text has hyperlinks to the source code at <https://github.com/mit-pdos/xv6-riscv>. See <https://pdos.csail.mit.edu/6.1810> for additional pointers to on-line resources for v6 and xv6, including several lab assignments using xv6.
+
+We have used this text in 6.828 and 6.1810, the operating system classes at MIT. We thank the faculty, teaching assistants, and students of those classes who have all directly or indirectly contributed to xv6. In particular, we would like to thank Adam Belay, Austin Clements, and Nickolai Zeldovich. Finally, we would like to thank people who emailed us bugs in the text or suggestions for improvements: Abutalib Aghayev, Sebastian Boehm, brandb97, Anton Burtsev, Raphael Carvalho, Tej Chajed,Brendan Davidson, Rasit Eskicioglu, Color Fuzzy, Wojciech Gac, Giuseppe, Tao Guo, Haibo Hao, Naoki Hayama, Chris Henderson, Robert Hilderman, Eden Hochbaum, Wolfgang Keller, Paweł Kraszewski, Henry Laih, Jin Li, Austin Liew, lyazj@github.com, Pavan Maddamsetti, Jacek Masiulaniec, Michael McConville, m3hm00d, Mes0903, miguelgvieira, Mark Morrissey, Muhammed Mourad, Harry Pan, Harry Porter, pr3pony, Siyuan Qian, Zhefeng Qiao, Askar Safin, Salman Shah, Huang Sha, Vikram Shenoy, Adeodato Simó, Ruslan Savchenko, Pawel Szczurko, Warren Toomey, tyfkda, tzerbib, unicornx, Vanush Vaswani, Chen Wang, Xi Wang, and Zou Chang Wei, Sam Whitlock, Qiongsi Wu, LucyShawYang, ykf1114@gmail.com, and Meng Zhou
+
+If you spot errors or have suggestions for improvement, please send email to Frans Kaashoek and Robert Morris (kaashoek,rtm@csail.mit.edu).
+
+## References
+<span id="ref-kernighan"></span>
+Kernighan, Brian W. 1988. *The c Programming Language*. 2nd ed. Edited by Dennis M. Ritchie. Prentice Hall Professional Technical Reference.
+
+<span id="ref-lions"></span>
+Lions, John. 2000. *Commentary on UNIX 6th Edition*. Peer to Peer Communications.
+
+<span id="ref-riscv"></span>
+Patterson, David, and Andrew Waterman. 2017. *The RISC-V Reader: An Open Architecture Atlas*. Strawberry Canyon.
+
+<span id="ref-unix"></span>
+Ritchie, Dennis M., and Ken Thompson. 1974. "The UNIX Time-Sharing System." *Commun. ACM* 17 (7): 365--75. <https://doi.org/10.1145/361011.361061>.

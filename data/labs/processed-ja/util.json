@@ -1,0 +1,97 @@
+{
+  "slug": "util",
+  "title": "ラボ: Xv6 および Unix ユーティリティ",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/util.html",
+  "fetchedAt": "2026-09-17T03:56:50.225Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "boot-xv6",
+      "text": "ブート xv6",
+      "number": "01"
+    },
+    {
+      "depth": 2,
+      "id": "sleep",
+      "text": "寝る",
+      "number": "02"
+    },
+    {
+      "depth": 2,
+      "id": "sixfive",
+      "text": "六五",
+      "number": "03"
+    },
+    {
+      "depth": 2,
+      "id": "memdump",
+      "text": "メモリダンプ",
+      "number": "04"
+    },
+    {
+      "depth": 2,
+      "id": "find",
+      "text": "見つける",
+      "number": "05"
+    },
+    {
+      "depth": 2,
+      "id": "exec",
+      "text": "実行する",
+      "number": "06"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "ラボを送信する",
+      "number": "07"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "費やした時間",
+      "number": "07.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "答え",
+      "number": "07.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "送信する",
+      "number": "07.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercises",
+      "text": "オプションのチャレンジ演習",
+      "number": "08"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-xv6-and-unix-utilities\">ラボ: Xv6 および Unix ユーティリティ</h1>\n\n<p>このラボでは、xv6 とそのシステム コールについて学びます。\n\n</p><h2 id=\"boot-xv6\" data-section-number=\"01\">ブート xv6 </h2>\n\n<p>\nを見てください。\n<a href=\"https://pdos.csail.mit.edu/6.S081/2026/labs/tools.html\">ラボツールのページ</a> 情報のため\nこれらのラボを実行するためにコンピューターをセットアップする方法について説明します。\n\n</p><p>ラボ用の xv6 ソースの git リポジトリを取得します。\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ git <span class=\"hljs-built_in\">clone</span> git://g.csail.mit.edu/xv6-labs-2026\nCloning into <span class=\"hljs-string\">'xv6-labs-2026'</span>...\n...\n$ <span class=\"hljs-built_in\">cd</span> xv6-labs-2026</code></pre>\n\n<p>このラボと後続のラボに必要なファイル\nを使用して配布されます\nの <a href=\"http://www.git-scm.com/\" class=\"external-link\" rel=\"noreferrer\">Git</a> バージョン管理システム。\nそれぞれのラボをチェックアウトします\nそのラボ用に調整された xv6 のバージョン。\nGit についてさらに詳しく知りたい場合は、以下を参照してください。\n<a href=\"http://www.kernel.org/pub/software/scm/git/docs/user-manual.html\" class=\"external-link\" rel=\"noreferrer\">Git\nユーザーマニュアル</a>、またはこれ\n<a href=\"http://eagain.net/articles/git-for-computer-scientists/\" class=\"external-link\" rel=\"noreferrer\">CS志向\nGit の概要</a>。\nGit を使用すると、コードに加えた変更を追跡できます。\nたとえば、演習の 1 つが終了し、次のことを行いたい場合は、\n進行状況をチェックするには、次のことができます <i>コミットする</i> あなたの変更点\n実行することで:\n</p>\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ git commit -am <span class=\"hljs-string\">'my solution for util lab exercise 1'</span>\nCreated commit 60d2135: my solution <span class=\"hljs-keyword\">for</span> util lab exercise 1\n 1 files changed, 1 insertions(+), 0 deletions(-)\n$</code></pre>\n\n<p>\n変更内容を確認するには、 <kbd>git diff</kbd>、\n変更を表示する\n最後のコミット以降。 <kbd>git diff\norigin/util</kbd> に相対的な変化を表示します。\nイニシャル <tt>util</tt> コード。  <tt>origin/util</tt> です\nこのラボの git ブランチの名前。\n</p>\n\n<p>xv6 をビルドして実行します。\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ make qemu\nriscv64-unknown-elf-gcc    -c -o kernel/entry.o kernel/entry.S\nriscv64-unknown-elf-gcc -Wall -Werror -O -fno-omit-frame-pointer -ggdb -DSOL_UTIL -MD -mcmodel=medany -ffreestanding -fno-common -nostdlib -mno-relax -I. -fno-stack-protector -fno-pie -no-pie   -c -o kernel/start.o kernel/start.c\n...\nriscv64-unknown-elf-ld -z max-page-size=4096 -N -e main -Ttext 0 -o user/_zombie user/zombie.o user/ulib.o user/usys.o user/printf.o user/umalloc.o\nriscv64-unknown-elf-objdump -S user/_zombie &gt; user/zombie.asm\nriscv64-unknown-elf-objdump -t user/_zombie | sed <span class=\"hljs-string\">'1,/SYMBOL TABLE/d; s/ .* / /; /^$/d'</span> &gt; user/zombie.sym\nmkfs/mkfs fs.img README  user/xargstest.sh user/_cat user/_echo user/_forktest user/_grep user/_init user/_kill user/_ln user/_ls user/_mkdir user/_rm user/_sh user/_stressfs user/_usertests user/_grind user/_wc user/_zombie\nnmeta 46 (boot, super, <span class=\"hljs-built_in\">log</span> blocks 30 inode blocks 13, bitmap blocks 1) blocks 954 total 1000\nballoc: first 591 blocks have been allocated\nballoc: write bitmap block at sector 45\nqemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 3 -nographic -drive file=fs.img,<span class=\"hljs-keyword\">if</span>=none,format=raw,<span class=\"hljs-built_in\">id</span>=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0\n\nxv6 kernel is booting\n\nhart 2 starting\nhart 1 starting\ninit: starting sh\n$</code></pre>\n\n<p>\n入力すると <tt>ls</tt> プロンプトでは、次のような出力が表示されるはずです。\n以下に:\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ <span class=\"hljs-built_in\">ls</span>\n.              1 1 1024\n..             1 1 1024\nREADME         2 2 2227\nxargstest.sh   2 3 93\n<span class=\"hljs-built_in\">cat</span>            2 4 32864\n<span class=\"hljs-built_in\">echo</span>           2 5 31720\nforktest       2 6 15856\ngrep           2 7 36240\ninit           2 8 32216\n<span class=\"hljs-built_in\">kill</span>           2 9 31680\n<span class=\"hljs-built_in\">ln</span>             2 10 31504\n<span class=\"hljs-built_in\">ls</span>             2 11 34808\n<span class=\"hljs-built_in\">mkdir</span>          2 12 31736\n<span class=\"hljs-built_in\">rm</span>             2 13 31720\nsh             2 14 54168\nstressfs       2 15 32608\nusertests      2 16 178800\ngrind          2 17 47528\n<span class=\"hljs-built_in\">wc</span>             2 18 33816\nzombie         2 19 31080\nconsole        3 20 0</code></pre>\nこれらのファイルは、 <tt>mkfs</tt> に含まれます\n初期ファイルシステム。ほとんどは実行できるプログラムです。 そのうちの 1 つを実行しました。 <tt>ls</tt>。\n\n<p>xv6にはありません <tt>ps</tt> コマンドですが、入力すると <kbd>Ctrl-p</kbd>、\nカーネルは各プロセスに関する情報を出力します。\n今試してみると、2 つの行が表示されます。1 つは <tt>init</tt>、\nそして1つは <tt>sh</tt>。\n\n</p><p>qemu を終了するには、次のように入力します。 <kbd>Ctrl-a x</kbd> (押す <kbd>Ctrl</kbd> そして <kbd>a</kbd> 同時に、続いて <kbd>x</kbd>）。\n\n</p><h2 id=\"sleep\" data-section-number=\"02\">寝る </h2>\n\n<p>この演習では、xv6 でのユーザー プログラムの作成に慣れます。 \nそして <tt>pause</tt> システムコール。\n\n</p><div class=\"lab-required\">\n<p>ユーザーレベルの実装 <tt>sleep</tt> xv6 用のプログラムに沿って\n UNIX の sleep コマンドの。あなたの <tt>sleep</tt> 一時停止する必要があります\n ユーザーが指定したティック数に対して。 ティックは時間の概念です\n xv6 カーネルによって定義される、つまり 2 つの割り込み間の時間\n タイマーチップから。 ソリューションはファイル内にあるはずです\n  <tt>user/sleep.c</tt>。\n</p></div>\n\n<p>\n\n</p><p>いくつかのヒント:\n  </p><ul>\n\n    <li>コーディングを始める前に、の第 1 章を読んでください。 \nの <a href=\"/book/chapter-1/\" class=\"book-link\">xv6 本</a>。\n\n    </li><li>コードを入力してください <tt>user/sleep.c</tt>。 \n他のプログラムをいくつか見てみましょう <tt>user/</tt>\n    (例: <tt>user/echo.c</tt>、 <tt>user/grep.c</tt>、\n そして <tt>user/rm.c</tt>）\n コマンドライン引数がどのようにプログラムに渡されるかを確認します。\n\n    </li><li>を追加してください <tt>sleep</tt> にプログラムする <tt>UPROGS</tt> メイクファイル内;一度行ったら\n それをやった、 <tt>make qemu</tt> プログラムをコンパイルすると、\n xv6 シェルから実行できるようになります。\n\n    </li><li>ユーザーの場合\n 引数を渡すのを忘れた場合、sleep はエラー メッセージを出力する必要があります。\n\n    </li><li>コマンドライン引数は文字列として渡されます。に変換できます\n 整数を使用する <tt>atoi</tt> (user/ulib.c を参照)。\n\n    </li><li>システムコールを使う <tt>pause()</tt>。\n\n    </li><li>参照 <tt>kernel/sysproc.c</tt> のために\n を実装する xv6 カーネル コード <tt>pause()</tt> システム\n 電話をかける（探す） <tt>sys_pause</tt>）、 <tt>user/user.h</tt>\n    C の定義の場合 <tt>pause()</tt> から呼び出し可能\n ユーザープログラム、および <tt>user/usys.S</tt> アセンブラ用\n ユーザーコードからカーネルにジャンプするコード <tt>pause()</tt>。\n\n    </li><li>カーニハンとリッチーの本を見てください <i>C プログラミング言語\n (第2版)</i> (K&amp;R) C について学びます。\n\n  </li></ul>\n\n  <p>xv6 シェルからプログラムを実行します。\n    </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">      $ make qemu\n      ...\n      init: starting sh\n      $ <span class=\"hljs-built_in\">sleep</span> 10\n      (nothing happens <span class=\"hljs-keyword\">for</span> a little <span class=\"hljs-keyword\">while</span>)\n      $\n    </code></pre>\n  <p>プログラムは次の場合に一時停止する必要があります\n 上に示すように実行します。 \n走る <kbd>make grade</kbd> コマンドライン (qemu の外部) で、\n 睡眠検査。\n\n </p><p>注意してください <kbd>make grade</kbd> のテストを含むすべてのテストを実行します。 \n以下のタスク。 1 つのタスクに対して採点テストを実行する場合は、次のように入力します。\n   </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">     $ ./grade-lab-util <span class=\"hljs-built_in\">sleep</span>\n   </code></pre>\n   これにより、「睡眠」に一致する成績テストが実行されます。 または、次のように入力することもできます。\n   <pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">     $ make GRADEFLAGS=<span class=\"hljs-built_in\">sleep</span> grade\n   </code></pre>\n   それは同じことをします。\n\n<h2 id=\"sixfive\" data-section-number=\"03\">六五 </h2>\n\n <p>この演習では、システム コール open と read、C を使用します。 \n文字列、および C でのテキスト ファイルの処理。\n\n</p><div class=\"lab-required\">\n  <p>入力ファイルごとに、 <tt>sixfive</tt> すべての数字を出力する必要があります\n ファイル内の 5 または 6 の倍数。数字は一連の値です。 \n文字列「 -\\r\\t\\n./,」内の文字で区切られた 10 進数。 したがって、\n 「xv6」の 6 の場合、sixfive は 6 を出力すべきではありませんが、たとえば、\n 「/6」であるはずです。 \nコマンドライン引数が指定されていない場合、sixfive は次のようにします。 \n標準入力から読み取ります。コマンドライン引数の場合\n オープンに失敗するファイルを指定します。sixfive は、\n 印刷する <tt>sixfive: cannot open xxx</tt>、xxx は\n ファイル名。\n</p></div>\n\n  次の例は、sixfive の動作を示しています。\n  <pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">    $ sixfive sixfive.txt\n    5\n    100\n    18\n    6\n    $\n  </code></pre>\n\n<p>いくつかのヒント:\n  </p><ul>\n    <li>入力ファイルを一度に 1 文字ずつ読み取ります\n    </li><li> 文字が区切り文字のいずれかに一致するかどうかをテストできます\n を使用して <tt>strchr</tt> (user/ulib.c を参照)。\n    </li><li>ファイルの開始と終了は暗黙の区切り文字です。\n  </li></ul>\n\n<h2 id=\"memdump\" data-section-number=\"04\">メモリダンプ </h2>\n\n<p>\n  この演習では、C ポインターの使い方をさらに練習します。 以前\n セクション 5.1 (ポインタとアドレス) から 5.6 までを読み始めてください。 \n「The C」の (ポインター配列) および 6.4 (構造体へのポインター)\n プログラミング言語 (第 2 版)」カーニハンとリッチー著\n (K&amp;R)。\n\n</p><p>\n見てください <tt>user/memdump.c</tt>。あなたの仕事は関数を実装することです\n<tt>memdump(char *fmt, char *data, int len)</tt>。 <tt>memdump()</tt>の目的は、\nの内容 <tt>len</tt> が指すメモリの有効なバイト <tt>data</tt> で記述された形式で\nの <tt>fmt</tt> 議論。形式は C 文字列です。の各キャラクター\nstring は、データの連続した部分を出力する方法を示します。したがって、\nたとえば、複数のフィールドを持つ C 構造体は次の形式で出力できます。\n複数の文字を含む文字列。\n\n</p><p>\nmemdump() は次のフォーマット文字を処理する必要があります。\n\n</p><ul>\n<li>i: データの次の 4 バイトを 32 ビット整数として 10 進数で出力します。\n</li><li>p: データの次の 8 バイトを 64 ビット整数 (16 進数) として出力します。\n</li><li>h: データの次の 2 バイトを 16 ビット整数として 10 進数で出力します。\n</li><li>c: データの次の 1 バイトを 8 ビット ASCII 文字として出力します。\n</li><li>s: データの次の 8 バイトには、C への 64 ビット ポインタが含まれます。 \n文字列;文字列を出力します。\n</li><li>S: 残りのデータには、NULL で終了するバイトが含まれます。 \nC 文字列。文字列を出力します。\n</li></ul>\n\n<p>\n<tt>memdump()</tt> を尊重しなければなりません <tt>len</tt> 議論し、過去を決して読まないでください\nの <tt>len</tt> 有効なバイト数 <tt>data</tt>。フォーマット文字が\n残りのバイト数よりも多くのバイトが必要です (たとえば、 <tt>i</tt> 4バイト必要です\n残り 2 個の場合）、 <tt>memdump()</tt> 印刷する必要があります\n\n</p><pre data-language=\"makefile\" tabindex=\"0\"><code class=\"hljs language-makefile\"><span class=\"hljs-section\">memdump: not enough data for 'X'</span></code></pre>\n\nどこで <tt>X</tt> はそのフォーマット文字であり、停止します。 のために <tt>S</tt>\n形式では、文字列を終端の null バイトまたは文字列の末尾まで出力します。\n有効なデータのいずれかが先に来るもの。\n\n<p>\nCは自由に使ってください <tt>printf()</tt> あなたの中で <tt>memdump()</tt>。\n\n</p><p>\nの <tt>memdump</tt> プログラムを引数なしで実行すると、 <tt>memdump()</tt>\nいくつかのフォーマット文字列とデータの例を示します。もし <tt>memdump()</tt> 正しくです\n実装すると、出力は次のようになります。\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ memdump\nExample 1:\n61810\n2026\nExample 2:\na string\nExample 3:\nanother\nExample 4:\nBD0\n1819438967\n100\nz\nxyzzy\nExample 5:\nhello\nw\no\nr\nl\nd</code></pre>\n\n<p>\n最初の行には異なる 16 進アドレスが表示される可能性があります\n例 4 の出力。\n\n</p><p>\nもし <tt>memdump</tt> プログラムが引数を指定して呼び出されると、次のようになります。\n標準入力をファイルの終わりまで入力してから呼び出します <tt>memdump()</tt>\nフォーマットと入力データを使用します。それで、一度、 <tt>memdump()</tt> 実装されています:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ <span class=\"hljs-built_in\">echo</span> deadc0de | memdump hhcccc\n25956\n25697\nc\n0\nd\ne\n$ <span class=\"hljs-built_in\">echo</span> deadc0de | memdump p\n6564306364616564\n$</code></pre>\n\n<p>\n入力がフォーマット文字に対して短すぎる場合、境界チェックが実行されます。ここ\n<tt>echo a</tt> 2 バイトのみを提供します (<tt>'a'</tt> と改行)、しかし\n<tt>i</tt> 4 つ必要です:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ <span class=\"hljs-built_in\">echo</span> a | memdump i\nmemdump: not enough data <span class=\"hljs-keyword\">for</span> <span class=\"hljs-string\">'i'</span>\n$</code></pre>\n\n<div class=\"lab-required\">\n  <p>実装する <tt>memdump()</tt>。\n</p></div>\n\n<h2 id=\"find\" data-section-number=\"05\">見つける </h2>\n\n<p>この演習では、パス名とディレクトリ、および\n システムは、open、read、および fstat を呼び出します。\n\n</p><div class=\"lab-required\">\n<p>xv6 用の UNIX 検索プログラムの単純なバージョンを作成します: find all\n ファイル名とディレクトリ名\n 特定の名前のディレクトリ ツリー内。 あなたの解決策\n ファイルにあるはずです <tt>user/find.c</tt>。\n\n</p></div>\n\n<p>いくつかのヒント:\n  </p><ul>\n    <li>ディレクトリの読み取り方法については、user/ls.c を参照してください。\n    </li><li>再帰を使用して、find がサブディレクトリに下降できるようにします。\n    </li><li>「.」を再帰しないでください。そして \"..\"。\n    </li><li>呼び出すたびに <kbd>make qemu</kbd>、新しいものを構築します\n fs.img、以前の実行で作成されたファイルを削除します。もしそうしていただければ\n 以前のファイルシステムで qemu を起動したい\n 使う <kbd>make qemu-fs</kbd>。\n    </li><li>C 文字列を使用する必要があります。 K&amp;R (C ブック) を見てください。 \nたとえばセクション 5.5。\n    </li><li> == は Python のように文字列を比較しないことに注意してください。代わりに strcmp() を使用してください。\n    </li><li>プログラムを追加する <tt>UPROGS</tt> メイクファイルで。\n  </li></ul>\n\n<p>ソリューションは次の出力を生成するはずです (\n ファイルシステムにはファイルが含まれています <tt>b</tt>、 <tt>a/b</tt> そして <tt>a/aa/b</tt>):\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">    $ make qemu\n    ...\n    init: starting sh\n    $ <span class=\"hljs-built_in\">echo</span> &gt; b\n    $ <span class=\"hljs-built_in\">mkdir</span> a\n    $ <span class=\"hljs-built_in\">echo</span> &gt; a/b\n    $ <span class=\"hljs-built_in\">mkdir</span> a/aa\n    $ <span class=\"hljs-built_in\">echo</span> &gt; a/aa/b\n    $ find . b\n    ./b\n    ./a/b\n    ./a/aa/b\n    $\n  </code></pre>\n\n<p>走る <tt>make grade</tt> 私たちのテストが何を考えているかを見るために。\n\n</p><h2 id=\"exec\" data-section-number=\"06\">実行する </h2>\n\n<p>この演習には、システム コールの fork、exec、および wait が含まれます。\n\n</p><div class=\"lab-required\">\n  <p>「-exec」を追加 <i>cmd</i>「に <tt>find</tt>、プログラムを実行します。<tt>cmd file</tt>」\n ファイルごとに <i>f</i> それ <tt>find</tt> 見つけます、\n 一致するファイル名を出力する代わりに。\n</p></div>\n\n  次の例は、find -exec を示しています。 \n動作:\n  <pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">    $ find . <span class=\"hljs-built_in\">wc</span> -<span class=\"hljs-built_in\">exec</span> <span class=\"hljs-built_in\">echo</span> hi\n    hi ./wc\n    $\n  </code></pre>\n  ここでのコマンドは「echo hi」であり、ファイルは\n は「./wc」なので、コマンドは「echo hi ./wc」になります。 \nこれは「hi ./wc」を出力します。\n\n<p>いくつかのヒント:\n  </p><ul>\n    <li>使用する <tt>fork</tt> そして <tt>exec</tt> を呼び出すために\n 各ファイルに対してコマンドを実行します。 使用する <tt>wait</tt> 親の中で\n 子がコマンドを完了するまで待ちます。\n    </li><li>kernel/param.h は MAXARG を宣言します。これは必要な場合に便利です。 \nargv 配列を宣言します。\n  </li></ul>\n\n<p>find のソリューションをテストするには、シェル スクリプト findtest.sh を実行します。\nソリューションでは次の出力が生成されるはずです。\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ make qemu\n  ...\n  init: starting sh\n  $ sh &lt; findtest.sh\n$ <span class=\"hljs-built_in\">echo</span> DONE\n$ $ $ $ $ hello\nhello\nhello\n$ $\n  </code></pre>\n出力には、\nたくさんの <tt>$</tt> xv6 シェルは認識しないため\nコンソールからではなくファイルからコマンドを処理しています。\nを印刷します <tt>$</tt> ファイル内のコマンドごとに。\n\n<!-- START SECTION: submit -->\n<p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"07\">ラボを送信する</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"07.1\">費やした時間</h3>\n\n<p>新しいファイルを作成し、 <tt>time.txt</tt>、単一の整数を入力すると、\nラボに費やした時間数。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> ファイル。\n\n</p><h3 id=\"answers\" data-section-number=\"07.2\">答え</h3>\n\n<p>このラボに質問がある場合は、回答を次の場所に記入してください <tt>answers-*.txt</tt>。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> これらのファイル。\n\n</p><h3 id=\"submit\" data-section-number=\"07.3\">送信する</h3>\n\n<p>課題の提出は Gradescope によって処理されます。\nMIT グレードスコープ アカウントが必要です。\nクラスに参加するためのエントリー コードについては、Piazza を参照してください。\n使用する <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">このリンク</a>\n参加にさらにサポートが必要な場合。\n\n</p><p>送信する準備ができたら、実行します <kbd>make zipball</kbd>、\n生成するもの <tt>lab.zip</tt>。\nこの zip ファイルを対応する Gradescope 課題にアップロードします。\n\n</p><p> 走れば <kbd>make zipball</kbd> コミットされていない変更があるか、\n追跡されていないファイルの場合は、次のような出力が表示されます。\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\n上記の行を調べて、ラボ ソリューションに必要なすべてのファイルを確認してください。\n追跡されます。つまり、で始まる行にはリストされません。 <tt>??</tt>。\nあなたが引き起こすことができます <tt>git</tt> を使用して作成した新しいファイルを追跡するには\n<kbd>git add {filename}</kbd>。\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>走ってください <kbd>make grade</kbd> コードがすべてのテストに合格することを確認します。 \nGradescope 自動採点機能は、同じ採点プログラムを使用して提出物に成績を割り当てます。</li>\n  <li>実行前に変更したソース コードをコミットする <kbd>make zipball</kbd>。</li>\n  <li>提出物のステータスを確認し、提出済みのファイルをダウンロードできます。 \nGradescope のコード。 Gradescope のラボ成績が最終的なラボ成績です。</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercises\" data-section-number=\"08\">オプションのチャレンジ演習</h2>\n\n<ul>\n\n  <li><p>稼働時間を表示する稼働時間プログラムを作成します。 \nを使用してティックします <tt>uptime</tt> システムコール。 \n      </p></li>\n\n  <li><p>名前一致での正規表現のサポート\n のために <tt>find</tt>。  <tt>grep.c</tt> いくつかの原始的なサポートがあります\n 正規表現。  \n      </p></li>\n\n  <li><p>xv6 シェル (<tt>user/sh.c</tt>) は単なる別のユーザーです\n プログラム。欠けている\n 実際のシェルには多くの機能がありますが、変更することもできます\n そしてそれを改善します。たとえば、シェルを変更します。 \nを印刷しないようにするには <tt>$</tt> からのシェルコマンドを処理するとき、\n ファイル 、シェルを次のように変更します\n サポート待ち、\n サポートするようにシェルを変更します\n タブ補完 、シェルを次のように変更します。 \n渡されたシェルコマンドの履歴を保持する\n 、またはその他何でもいいでしょう\n あなたのシェルがやるべきことのように。 （もしあなたが非常に野心的であれば、そうするかもしれません）\n 必要なカーネル機能をサポートするようにカーネルを変更します。 \nxv6 はあまりサポートしていません。)\n\n</p></li></ul>\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 8,
+    "h3": 3,
+    "paragraphs": 49,
+    "codeBlocks": 16,
+    "links": 6,
+    "lists": 7,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 8,
+    "h3": 3,
+    "paragraphs": 49,
+    "codeBlocks": 16,
+    "links": 6,
+    "lists": 7,
+    "tables": 0,
+    "figures": 0
+  }
+}

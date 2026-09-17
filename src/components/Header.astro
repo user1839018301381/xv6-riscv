@@ -1,0 +1,42 @@
+---
+const pathname = Astro.url.pathname;
+---
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="wordmark" href="/" aria-label="xv6 Reader home">
+      <span aria-hidden="true">xv6</span>
+      <span class="wordmark__suffix">Reader</span>
+    </a>
+
+    <nav class="primary-nav" aria-label="Primary navigation">
+      <a href="/labs/" aria-current={pathname.startsWith('/labs') ? 'page' : undefined}>Labs</a>
+      <a href="/book/" aria-current={pathname.startsWith('/book') ? 'page' : undefined}>Book</a>
+    </nav>
+
+    <div class="header-actions">
+      <button class="icon-button" type="button" data-search-open aria-label="Search Labs and Book" data-tooltip="Search (⌘K)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+      </button>
+      <button class="icon-button" type="button" data-theme-toggle aria-label="Switch color theme" data-tooltip="Color theme">
+        <svg class="theme-icon theme-icon--sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+        <svg class="theme-icon theme-icon--moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.4A8 8 0 0 1 8.6 4a8 8 0 1 0 11.4 11.4Z"></path></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<dialog class="search-dialog" data-search-dialog aria-labelledby="search-title">
+  <div class="search-panel">
+    <div class="search-field">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+      <label class="visually-hidden" for="site-search">Search Labs and Book</label>
+      <input id="site-search" type="search" placeholder="Search riscv.h, trapframe, wakeup…" autocomplete="off" data-search-input>
+      <button class="search-close" type="button" data-search-close aria-label="Close search"><kbd>Esc</kbd></button>
+    </div>
+    <h2 id="search-title" class="visually-hidden">Search results</h2>
+    <p class="search-status" data-search-status aria-live="polite">Type to search all Labs and Book chapters.</p>
+    <div class="search-results" data-search-results role="listbox" aria-label="Search results"></div>
+    <div class="search-help" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span></div>
+  </div>
+</dialog>

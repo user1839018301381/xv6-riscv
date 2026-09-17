@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 #
-# python script that tests xv6 without having to boot it and type to its shell
+# xv6を起動してシェルに入力しなくてもテストできるPythonスクリプト
 #
-# ./test-xv6.py usertests  (runs usertests)
-# ./test-xv6.py -q usertests (runs the quick tests of usertests)
-# ./test-xv6.py crash  (runs the crash tests)
-# ./test-xv6.py log (runs the log crash test)
+# ./test-xv6.py usertests  (usertestsを実行)
+# ./test-xv6.py -q usertests (usertestsの高速テストを実行)
+# ./test-xv6.py crash  (クラッシュテストを実行)
+# ./test-xv6.py log (ログクラッシュテストを実行)
 
 import argparse, os, inspect, re, signal, subprocess, sys, time
 from subprocess import run
@@ -79,7 +79,7 @@ class QEMU(object):
                 buf = os.read(self.proc.stdout.fileno(), 4096)
             except BlockingIOError:
                 break
-            if len(buf) == 0:  # qemu exited
+            if len(buf) == 0:  # qemuが終了した
                 break
             self.outbytes.extend(buf)
         self.output = self.outbytes.decode("utf-8", "replace")
@@ -103,9 +103,8 @@ class QEMU(object):
             self.error(*regexps)
         return found
 
-    # Print the lines matching regexp that have arrived since the last
-    # call.  A trailing partial line is left for the next call, so that
-    # each line is printed once, after all of it has been read.
+    # 前回の呼び出し以降に到着したregexp一致行を出力する。
+    # 末尾の不完全な行は次回に残し、全体を読み終えてから各行を1度だけ出力する。
     def progress(self, regexp):
         end = self.output.rfind("\n") + 1
         if end <= self.reported:

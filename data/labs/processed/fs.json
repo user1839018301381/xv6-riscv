@@ -1,0 +1,103 @@
+{
+  "slug": "fs",
+  "title": "Lab: file system",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/fs.html",
+  "fetchedAt": "2026-09-17T03:57:34.541Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "large-files",
+      "text": "Large files",
+      "number": "01"
+    },
+    {
+      "depth": 3,
+      "id": "preliminaries",
+      "text": "Preliminaries",
+      "number": "01.1"
+    },
+    {
+      "depth": 3,
+      "id": "what-to-look-at",
+      "text": "What to Look At",
+      "number": "01.2"
+    },
+    {
+      "depth": 3,
+      "id": "your-job",
+      "text": "Your Job",
+      "number": "01.3"
+    },
+    {
+      "depth": 2,
+      "id": "symbolic-links",
+      "text": "Symbolic links",
+      "number": "02"
+    },
+    {
+      "depth": 3,
+      "id": "your-job-2",
+      "text": "Your job",
+      "number": "02.1"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "Submit the lab",
+      "number": "03"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "Time spent",
+      "number": "03.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "Answers",
+      "number": "03.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "Submit",
+      "number": "03.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercises",
+      "text": "Optional challenge exercises",
+      "number": "04"
+    },
+    {
+      "depth": 3,
+      "id": "acknowledgment",
+      "text": "Acknowledgment",
+      "number": "04.1"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-file-system\">Lab: file system</h1>\n\n<p>In this lab you will add large files and symbolic links to the xv6\n  file system.\n\n</p><div class=\"lab-prereq\">\n<p>Before writing code, you should read \"Chapter 10:\n  File system\" from the <a href=\"/book/chapter-10/\" class=\"book-link\">xv6\n  book</a> and study the corresponding code.\n</p></div>\n\n<p>Fetch the xv6 source for the lab and check out the <tt>util</tt> branch:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ git fetch\n  $ git checkout fs\n  $ make clean</code></pre>\n\n<h2 id=\"large-files\" data-section-number=\"01\">Large files </h2>\n\n<p>In this assignment you'll increase the maximum size of an xv6\nfile. Currently xv6 files are limited to 268 blocks, or 268*BSIZE\nbytes (BSIZE is 1024 in xv6). This limit comes from the fact that an\nxv6 inode contains 12 \"direct\" block numbers and one \"singly-indirect\"\nblock number, which refers to a block that holds up to 256 more block\n  numbers, for a total of 12+256=268 blocks.\n\n</p><p>The <tt>bigfile</tt> command creates the longest file it can,\nand reports that size:\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ bigfile\n..\nwrote 268 blocks\nbigfile: file is too small\n$</code></pre>\nThe test fails because <tt>bigfile</tt> expects to be able\nto create a file with 65803 blocks, but unmodified xv6 limits\nfiles to 268 blocks.\n\n<p>You'll change the xv6 file system code to support a\n\"doubly-indirect\" block in each inode, containing 256 addresses of\nsingly-indirect blocks, each of which can contain up to 256 addresses\nof data blocks. The result will be that a file will be able to consist\nof up to 65803 blocks, or 256*256+256+11 blocks (11 instead of 12, because we will\nsacrifice one of the direct block numbers for the double-indirect\nblock).\n\n</p><h3 id=\"preliminaries\" data-section-number=\"01.1\">Preliminaries</h3>\n\nThe <tt>mkfs</tt> program creates the xv6 file system disk image\nand determines\nhow many total blocks the file system has; this size is controlled by\n<tt>FSSIZE</tt> in <tt>kernel/param.h</tt>.\nYou'll see that <tt>FSSIZE</tt> in the repository for\nthis lab is set to\n200,000 blocks.  You should see the following output from <tt>mkfs/mkfs</tt>\nin the make output:\n<pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">nmeta 71 (boot, super, log blocks 31, inode blocks 13, bitmap blocks 25) blocks 199929 total 200000</code></pre>\nThis line describes the file system that <tt>mkfs/mkfs</tt> built: it\nhas 71 meta-data blocks (blocks used to describe the file system) and\n199,929 data blocks, totaling 200,000 blocks.\n<br>\n\n<p>Note that <tt>make qemu</tt> builds a new <tt>fs.img</tt>, and\nsaves the old one in <tt>fs.img.bk</tt>. If you want to run xv6 with\nthe existing <tt>fs.img</tt> instead of building a new one,\nrun <tt>make qemu-fs</tt>.\n\n</p><h3 id=\"what-to-look-at\" data-section-number=\"01.2\">What to Look At</h3>\n\nThe format of an on-disk inode is defined by <tt>struct dinode</tt>\nin <tt>fs.h</tt>. You're particularly interested in <tt>NDIRECT</tt>,\n<tt>NINDIRECT</tt>, <tt>MAXFILE</tt>, and the <tt>addrs[]</tt> element\nof <tt>struct dinode</tt>. Look at Figure 10.3 in the xv6 text for a\ndiagram of the standard xv6 inode.\n\n<p>\nThe code that finds a file's data on disk is in <tt>bmap()</tt>\nin <tt>fs.c</tt>. Have a look at it and make sure you understand\nwhat it's doing. <tt>bmap()</tt> is called both when reading and\nwriting a file. When writing, <tt>bmap()</tt> allocates new\nblocks as needed to hold file content, as well as allocating\nan indirect block if needed to hold block addresses.\n\n</p><p>\n<tt>bmap()</tt> deals with two kinds of block numbers. The <tt>bn</tt>\nargument is a \"logical block number\" -- a block number within the file,\nrelative to the start\nof the file. The block numbers in <tt>ip-&gt;addrs[]</tt>, and the\nargument to <tt>bread()</tt>, are disk block numbers.\nYou can view <tt>bmap()</tt> as mapping a file's logical\nblock numbers into disk block numbers.\n\n</p><h3 id=\"your-job\" data-section-number=\"01.3\">Your Job</h3>\n\n<div class=\"lab-required\">\nModify <tt>bmap()</tt> so that it implements a doubly-indirect block,\nin addition to direct blocks and a singly-indirect block.  You'll have\nto have only 11 direct blocks, rather than 12, to make room for your\nnew doubly-indirect block; you're not allowed to change the size of an\non-disk inode.  The first 11 elements of <tt>ip-&gt;addrs[]</tt> should\nbe direct blocks; the 12th should be a singly-indirect block (just\nlike the current one); the 13th should be your new doubly-indirect\nblock. You are done with this exercise when <tt>bigfile</tt> writes\n65803 blocks and <tt>usertests -q</tt> runs successfully:\n</div>\n\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ bigfile\n..................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................\nwrote 65803 blocks\n<span class=\"hljs-keyword\">done</span>; ok\n$ usertests -q\n...\nALL TESTS PASSED\n$ </code></pre>\n\n<p>\n<tt>bigfile</tt> will take at least a minute and a half to run.\n\n</p><p>Hints:\n\n</p><ul>\n    \n<li> Make sure you understand <tt>bmap()</tt>. Write out a diagram of the\nrelationships between <tt>ip-&gt;addrs[]</tt>, the indirect block, the\ndoubly-indirect block and the singly-indirect blocks it points to, and\ndata blocks. Make sure you understand why adding a doubly-indirect\nblock increases the maximum file size by 256*256 blocks (really -1,\nsince you have to decrease the number of direct blocks by one).\n\n</li><li>\nThink about how you'll index the doubly-indirect block, and\nthe indirect blocks it points to, with the logical block\nnumber.\n\n</li><li>If you change the definition of <tt>NDIRECT</tt>, you'll\nprobably have to change the declaration of <tt>addrs[]</tt>\nin <tt>struct inode</tt> in <tt>file.h</tt>. Make sure that\n<tt>struct inode</tt> and <tt>struct dinode</tt> have the\nsame number of elements in their <tt>addrs[]</tt> arrays.\n\n</li><li>If you change the definition of <tt>NDIRECT</tt>, make sure to create a\nnew <tt>fs.img</tt>, since <tt>mkfs</tt> uses <tt>NDIRECT</tt> to build the\nfile system.  \n\n</li><li>If your file system gets into a bad state, perhaps by crashing,\ndelete <tt>fs.img</tt> (do this from Unix, not xv6).  <tt>make</tt> will build a\nnew clean file system image for you.\n\n</li><li>Don't forget to <tt>brelse()</tt> each block that you\n<tt>bread()</tt>.\n\n</li><li>You should allocate indirect blocks and doubly-indirect\n  blocks only as needed, like the original <tt>bmap()</tt>.\n\n</li><li>Make sure <tt>itrunc</tt> frees all blocks of a file, including\n  double-indirect blocks.\n\n</li><li><tt>usertests</tt> takes longer to run than in previous labs\n  because for this lab <tt>FSSIZE</tt> is larger and big files are\n  larger.\n\n</li></ul>\n\n\n<h2 id=\"symbolic-links\" data-section-number=\"02\">Symbolic links </h2>\n\n<p>In this exercise you will add symbolic links to xv6.  Symbolic\nlinks (or soft links) refer to a linked file or directory\nby pathname; when a\nsymbolic link is opened, the kernel looks up the linked-to name.\nSymbolic links resemble hard links, but hard links are\nrestricted to pointing to files on the same disk,\ncannot refer to directories,\nand are tied to a specific target i-node rather than (as with\nsymbolic links) referring to whatever happens at the moment\nto be at the target name, if anything.\nImplementing this system call is a good exercise to\nunderstand how pathname lookup works.\n\n</p><p>You do not have to handle symbolic links to directories for this\nlab; the only system call that needs to know how to follow\nsymbolic links is <tt>open()</tt>.\n\n</p><h3 id=\"your-job-2\" data-section-number=\"02.1\">Your job</h3>\n\n<div class=\"lab-required\">\n<p>You will implement the <tt>symlink(char *target, char *path)</tt>\nsystem call, which creates a new symbolic link at path that refers\nto file named by target. For further information, see the man page\nsymlink.  To test, add symlinktest to the Makefile and run it. Your\nsolution is complete when the tests produce the following output\n(including usertests succeeding).\n</p></div>\n\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ symlinktest\nStart: <span class=\"hljs-built_in\">test</span> symlinks\n<span class=\"hljs-built_in\">test</span> symlinks: ok\nStart: <span class=\"hljs-built_in\">test</span> concurrent symlinks\n<span class=\"hljs-built_in\">test</span> concurrent symlinks: ok\n$ usertests -q\n...\nALL TESTS PASSED\n$ </code></pre>\n \n<p>Hints:\n\n</p><ul>\n\n<li> First, create a new system call number for symlink, add an entry\nto user/usys.pl, user/user.h, and implement an empty sys_symlink in kernel/sysfile.c.\n\n</li><li>Add a new file type (<tt>T_SYMLINK</tt>) to kernel/stat.h to\nrepresent a symbolic link.\n\n</li><li> Add a new flag to kernel/fcntl.h, (<tt>O_NOFOLLOW</tt>), that can\nbe used with the <tt>open</tt> system call. Note that flags passed to\n<tt>open</tt> are combined using a bitwise OR operator, so your new\nflag should not overlap with any existing flags. This will let you\ncompile user/symlinktest.c once you add it to the Makefile.\n\n</li><li>Implement the <tt>symlink(target, path)</tt> system call to create\na new symbolic link at path that refers to target. Note that target\ndoes not need to exist for the system call to succeed. You will need\nto choose somewhere to store the target path of a symbolic link, for\nexample, in the inode's data blocks. <tt>symlink</tt> should return an integer\nrepresenting success (0) or failure (-1) similar to <tt>link</tt> and <tt>unlink</tt>.\n\n</li><li>Modify the <tt>open</tt> system call to handle the case where the path\nrefers to a symbolic link. If the file does not exist, <tt>open</tt>\nmust fail.  When a process specifies <tt>O_NOFOLLOW</tt> in the flags\nto <tt>open</tt>, <tt>open</tt> should open the symlink (and not\nfollow the symbolic link).\n\n</li><li>If the linked file is also a symbolic link, you must recursively\nfollow it until a non-link file is reached. If the links form a cycle,\nyou must return an error code. You may approximate this by returning\nan error code if the depth of links reaches some threshold (e.g., 10).\n\n</li><li> Other system calls (e.g., link and unlink) must not\n  follow symbolic links; these system calls operate on the symbolic\n  link itself.\n\n</li></ul>\n\n<!-- START SECTION: submit -->\n<p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"03\">Submit the lab</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"03.1\">Time spent</h3>\n\n<p>Create a new file, <tt>time.txt</tt>, and put in a single integer, the\nnumber of hours you spent on the lab.\n<kbd>git add</kbd> and <kbd>git commit</kbd> the file.\n\n</p><h3 id=\"answers\" data-section-number=\"03.2\">Answers</h3>\n\n<p>If this lab had questions, write up your answers in <tt>answers-*.txt</tt>.\n<kbd>git add</kbd> and <kbd>git commit</kbd> these files.\n\n</p><h3 id=\"submit\" data-section-number=\"03.3\">Submit</h3>\n\n<p>Assignment submissions are handled by Gradescope.\nYou will need an MIT gradescope account.\nSee Piazza for the entry code to join the class.\nUse <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">this link</a>\nif you need more help joining.\n\n</p><p>When you're ready to submit, run <kbd>make zipball</kbd>,\nwhich will generate <tt>lab.zip</tt>.\nUpload this zip file to the corresponding Gradescope assignment.\n\n</p><p> If you run <kbd>make zipball</kbd> and you have either uncomitted changes or\nuntracked files, you will see output similar to the following:\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\nInspect the above lines and make sure all files that your lab solution needs\nare tracked, i.e., not listed in a line that begins with <tt>??</tt>.\nYou can cause <tt>git</tt> to track a new file that you create using\n<kbd>git add {filename}</kbd>.\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>Please run <kbd>make grade</kbd> to ensure that your code passes all of the tests.\n    The Gradescope autograder will use the same grading program to assign your submission a grade.</li>\n  <li>Commit any modified source code before running <kbd>make zipball</kbd>.</li>\n  <li>You can inspect the status of your submission and download the submitted\n    code at Gradescope. The Gradescope lab grade is your final lab grade.</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercises\" data-section-number=\"04\">Optional challenge exercises</h2>\n\n<p>Support triple-indirect blocks.\n\n</p><h3 id=\"acknowledgment\" data-section-number=\"04.1\">Acknowledgment</h3>\n  \n<p>Thanks to the staff of UW's CSEP551 (Fall 2019) for the symlink exercise.\n</p>",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 4,
+    "h3": 8,
+    "paragraphs": 25,
+    "codeBlocks": 6,
+    "links": 2,
+    "lists": 3,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 4,
+    "h3": 8,
+    "paragraphs": 25,
+    "codeBlocks": 6,
+    "links": 2,
+    "lists": 3,
+    "tables": 0,
+    "figures": 0
+  }
+}

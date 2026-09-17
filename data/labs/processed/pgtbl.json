@@ -1,0 +1,91 @@
+{
+  "slug": "pgtbl",
+  "title": "Lab: page tables",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/pgtbl.html",
+  "fetchedAt": "2026-09-17T03:57:17.689Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "inspect-a-user-process-page-table",
+      "text": "Inspect a user-process page table",
+      "number": "01"
+    },
+    {
+      "depth": 2,
+      "id": "walk-and-print-a-two-level-page-table",
+      "text": "Walk and print a two-level page table",
+      "number": "02"
+    },
+    {
+      "depth": 2,
+      "id": "detect-which-pages-have-been-accessed",
+      "text": "Detect which pages have been accessed",
+      "number": "03"
+    },
+    {
+      "depth": 2,
+      "id": "speed-up-the-getpid-system-call",
+      "text": "Speed up the getpid system call",
+      "number": "04"
+    },
+    {
+      "depth": 2,
+      "id": "use-superpages",
+      "text": "Use superpages",
+      "number": "05"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "Submit the lab",
+      "number": "06"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "Time spent",
+      "number": "06.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "Answers",
+      "number": "06.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "Submit",
+      "number": "06.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercises",
+      "text": "Optional challenge exercises",
+      "number": "07"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-page-tables\">Lab: page tables</h1>\n\n<p> In this lab you will explore page tables and modify them to\n  implement common OS features.\n\n</p><div class=\"lab-prereq\">\n<p>Before you start coding, read Chapter 3 of\n  the <a href=\"/book/chapter-3/\" class=\"book-link\">xv6 book</a>, and related files:\n\n  </p><ul>\n   <li> <tt>kernel/memlayout.h</tt>, which captures the layout of memory.\n\t  \n    </li><li> <tt>kernel/vm.c</tt>, which contains most virtual memory (VM) code.\n\n    </li><li> <tt>kernel/kalloc.c</tt>, which contains code for allocating and\n    freeing physical memory.\n  \n  </li></ul>\n\n  Consult <a href=\"https://drive.google.com/file/d/17GeetSnT5wW3xNuAHI95-SI1gPGd5sJ_/view?usp=drive_link\" class=\"external-link\" rel=\"noreferrer\">RISC-V privileged instructions</a> for how RISC-V defines page tables.\n\n</div>\n\n<p>To start the lab, switch to the pgtbl branch:\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ git fetch\n  $ git checkout pgtbl\n  $ make clean\n  </code></pre>\n\n<h2 id=\"inspect-a-user-process-page-table\" data-section-number=\"01\">Inspect a user-process page table </h2>\n\n<p>\nTo help you understand RISC-V page tables, your first task is to explain\nthe page table for a user process.\n\n</p><p>Run <tt>make qemu</tt> and run the user program <tt>pgtbltest</tt>.\nThe <tt>print_pgtbl</tt> function prints out the page-table entries\nfor the first 10 and last 10 pages of the <tt>pgtbltest</tt> process\nusing the <tt>pgpte</tt> system call that we added to xv6 for this\nlab. The output looks as follows:\n  </p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">va 0 pte 0x21FCF45B pa 0x87F3D000 perm 0x5B\nva 1000 pte 0x21FCE85B pa 0x87F3A000 perm 0x5B\n...\nva 0xFFFFD000 pte 0x0 pa 0x0 perm 0x0\nva 0xFFFFE000 pte 0x21FD80C7 pa 0x87F60000 perm 0xC7\nva 0xFFFFF000 pte 0x20001C4B pa 0x80007000 perm 0x4B\n </code></pre>\n\n<div class=\"lab-question\">\nFor every page table entry in the <tt>print_pgtbl</tt> output, explain\nwhat it logically contains and what its permission bits are. Figures\n3.2 and\n3.4 in the xv6 book might be helpful, although Figure 3.4\nmight have a slightly different set of pages than the process that's being\ninspected here.  Note that xv6 doesn't place the virtual pages\nconsecutively in physical memory.\n</div>\n\n<h2 id=\"walk-and-print-a-two-level-page-table\" data-section-number=\"02\">Walk and print a two-level page table </h2>\n\n<p>\nTo help you visualize RISC-V page tables, and perhaps\nto aid future debugging, your next task is to write a function\nthat walks the two-level page table and prints it.\n\n</p><div class=\"lab-required\">\n  We added a system call <tt>vmprint()</tt>, which calls\n  <tt>vmprint()</tt> in <tt>vm.c</tt>. It takes\na <tt>pagetable_t</tt> argument (the page table of the process that\n  made the system call), and your job is to print that pagetable\nin the format described below.\n</div>\n\n<p>\nWhen you run <tt>pgtbltest</tt>, <tt>vmprint_test()</tt>\ncalls your <tt>vmprint()</tt>, which should print the following:\n\n  </p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">page table 0x0000000087f22000\n ..0x0000000000000000: pte 0x0000000021fc7801 pa 0x0000000087f1e000 \n .. ..0x0000000000000000: pte 0x0000000021fc7401 pa 0x0000000087f1d000 \n .. .. ..0x0000000000000000: pte 0x0000000021fc7c5b pa 0x0000000087f1f000 RXU\n .. .. ..0x0000000000001000: pte 0x0000000021fc705b pa 0x0000000087f1c000 RXU\n .. .. ..0x0000000000002000: pte 0x0000000021fc6cd7 pa 0x0000000087f1b000 RWU\n .. .. ..0x0000000000003000: pte 0x0000000021fc6807 pa 0x0000000087f1a000 RW\n .. .. ..0x0000000000004000: pte 0x0000000021fc64d7 pa 0x0000000087f19000 RWU\n ..0x0000003fc0000000: pte 0x0000000021fc8401 pa 0x0000000087f21000 \n .. ..0x0000003fffe00000: pte 0x0000000021fc8001 pa 0x0000000087f20000 \n .. .. ..0x0000003fffffe000: pte 0x0000000021fd00c7 pa 0x0000000087f40000 RW\n .. .. ..0x0000003ffffff000: pte 0x0000000020001c4b pa 0x0000000080007000 RX\n  </code></pre>\n\nThe first line displays the argument to <tt>vmprint</tt>.\nAfter that there is a line for each PTE, including PTEs that\nrefer to page-table pages deeper in the tree.\nEach PTE line is indented by a number of <tt>\" ..\"</tt> that indicates its\ndepth in the tree.\nEach PTE line shows its virtual addresss, the pte bits, the\nphysical address extracted from the PTE, and the permission bits in\n  the PTE: R(ead), W(rite), eXecute, and U(ser).\nDon't print PTEs that are not valid.  In the above example, the\ntop-level page-table page has mappings for entries 0 and 255.  The next\nlevel down for entry 0 has only index 0 mapped, and the bottom-level\nfor that index 0 has a few entries mapped.\n\n<p>\nYour code might emit different physical addresses than those shown above.\nThe number of entries and the virtual addresses should be the same.\n</p>\n\n<p>Some hints:\n</p><ul>\n  <li>Use the macros at the end of the file kernel/riscv.h.\n  </li><li>The function <tt>freewalk</tt> may be inspirational.\n  </li><li>Use <tt>%p</tt> in your printk calls to print out full 64-bit hex PTEs and addresses as shown in the example.</li>\n</ul>\n\n<div class=\"lab-question\">\nFor every leaf page in the <tt>vmprint</tt> output, explain what it logically\ncontains and what the permission bits allow and disallow, and how it relates to the\noutput of the earlier <tt>print_pgtbl()</tt> exercise above.\nAgain, figure 3.4 in the xv6 book might be helpful.\n</div>\n\n<h2 id=\"detect-which-pages-have-been-accessed\" data-section-number=\"03\">Detect which pages have been accessed </h2>\n\n<p>\nSome applications (e.g., garbage collectors) can benefit\nfrom information about which pages have been accessed (read or write). In this\npart of the lab, you will add a new feature to xv6 that detects and reports this\ninformation to userspace by inspecting the access bits in the RISC-V page table.\nThe RISC-V hardware page walker marks these bits in the PTE whenever it resolves\na TLB miss.\n\n </p><div class=\"required\">\nYour job is to implement <tt>pgaccess()</tt>, a system call that reports which\npages have been accessed. The system call takes three arguments. First, it takes\nthe starting virtual address of the first user page to check. Second, it takes the\nnumber of pages to check. Finally, it takes a user address to a buffer to store\nthe results into a bitmask (a datastructure that uses one bit per page and where\nthe first page corresponds to the least significant bit). Your\nimplementation should handle invalid arguments to <tt>pgaccess()</tt>;\nfor example, <tt>pgaccess</tt> should return an -1 error for a check on page that isn't mapped\nor for an invalid\nbuffer address.\nYou will receive full\ncredit for this part of the lab if the <tt>pgaccess</tt> test case passes when\nrunning <tt>pgtbltest</tt>.\n</div>\n\n<p>Some hints:\n  </p><ul>\n  <li>Read <tt>pgaccess_test()</tt> in <tt>user/pgtbltest.c</tt> to\n    see how <tt>pgaccess</tt> is used.\n  </li><li>Start by implementing <tt>sys_pgaccess()</tt> in <tt>kernel/sysproc.c</tt>.\n  </li><li>You'll need to parse arguments using <tt>argaddr()</tt> and <tt>argint()</tt>.\n  </li><li>For the output bitmask, it's easier to store a temporary buffer in the kernel and copy it to the user (via <tt>copyout()</tt>) after filling it with the right bits.\n  </li><li>It's okay to set an upper limit on the number of pages that can be scanned.\n  </li><li><tt>walk()</tt> in <tt>kernel/vm.c</tt> is very useful for finding the right PTEs.\n  </li><li>You'll need to define <tt>PTE_A</tt>, the access bit,\n    in <tt>kernel/riscv.h</tt>. Consult <a href=\"https://drive.google.com/file/d/17GeetSnT5wW3xNuAHI95-SI1gPGd5sJ_/view?usp=drive_link\" class=\"external-link\" rel=\"noreferrer\">RISC-V privileged instructions</a> to determine its value\n  </li><li>Be sure to clear <tt>PTE_A</tt> after checking if it is set. Otherwise, it won't be possible to determine if the page was accessed since the last time <tt>pgaccess()</tt> was called (i.e., the bit will be set forever).\n  </li><li><tt>vmprint()</tt> may come in handy to debug page tables.\n</li></ul>\n\n<h2 id=\"speed-up-the-getpid-system-call\" data-section-number=\"04\">Speed up the <tt>getpid</tt> system call </h2>\n\n<p>\nSome operating systems (e.g., Linux) speed up certain system calls by sharing\ndata in a read-only region between userspace and the kernel. This eliminates the\nneed for kernel crossings when performing these system calls.  To help you learn\nhow to insert mappings into a page table, your task is to implement this\noptimization for the <tt>getpid()</tt> system call in xv6.\n\n</p><div class=\"lab-required\">\nWhen each process is created, map one read-only page at USYSCALL (a\nvirtual address defined\nin <tt>memlayout.h</tt>). At the start of this page, store a <tt>struct\nusyscall</tt> (also defined in <tt>memlayout.h</tt>), and initialize it to store\nthe PID of the current process. For this lab, <tt>ugetpid()</tt> has been\nprovided on the userspace side and will automatically use the USYSCALL mapping.\nYou will receive full credit for this part of the lab if the <tt>ugetpid</tt> test\ncase passes when running <tt>pgtbltest</tt>.\n</div>\n\n<p>Some hints:\n</p><ul>\n  <li>Choose permission bits that allow userspace to only read the page.\n  </li><li>There are a few things that need to be done over the lifecycle of a new page.\n      For inspiration, understand the trapframe handling in <tt>kernel/proc.c</tt>.\n</li></ul>\n \n<div class=\"lab-question\">\nWhich other xv6 system call(s) could be made faster using this shared page?\nExplain how.\n</div>\n\n<h2 id=\"use-superpages\" data-section-number=\"05\">Use superpages </h2>\n  \nThe RISC-V paging hardware supports two-megabyte pages as well as\nordinary 4096-byte pages. The general idea of larger pages is called\nsuperpages, and (since RISC-V supports more than one size) 2M pages\nare called megapages. The operating system creates a superpage by\nsetting the PTE_V and PTE_R bits in the level-1 PTE, and setting the\nphysical page number to point to the start of a two-megabyte region of\nphysical memory. This physical address must be two-mega-byte aligned\n(i.e., a multiple of two megabytes). You can read about this in the\n<a href=\"https://drive.google.com/file/d/17GeetSnT5wW3xNuAHI95-SI1gPGd5sJ_/view?usp=drive_link\" class=\"external-link\" rel=\"noreferrer\">RISC-V privileged architecture manual</a>\nby searching for megapage and superpage.\n\nUse of superpages decreases the amount of physical memory used by the\npage table, and can decrease misses in the TLB cache. For some\nprograms this leads to large increases in performance.\n\n<div class=\"lab-required\">\n  Your job is to modify the xv6 kernel to use superpages for the\n  kernel page table.  The kernel uses <tt>kvmmake()</tt> to build a\n  page table for itself by inserting many mappings\n  using <tt>kvmmap</tt>. If a mapping includes one or more areas that\n  are two-megabyte-aligned and at least two megabytes in size you\n  should use a single superpage (instead of many bottom-level\n  pages).  You will receive full credit for this part of the lab if\n  <tt>ksuper_test</tt> when running <tt>pgtbltest</tt> passes.\n</div>\n\n<p>Some hints:\n</p><ul>\n  <li>Make a copy of <tt>mappages</tt> that only <tt>kvmmap</tt> uses so that your copy of <tt>mappages</tt> can be specialized for the kernel by using superpages for kernel mappings (but not for user programs). \n  </li><li>Change your <tt>vmprint()</tt> to indicate which PTEs are a superpage\n</li></ul>\n\n<div class=\"lab-question\">\n  How many superpage PTEs does your solution use?  How many bottom-level pages do these superpage PTEs save?\n</div>\n\n<p>Real operating systems dynamically promote a collection of pages to\na superpage for the kernel and user processes.  The following reference explains why that is a good idea\nand what is hard in a more serious design: <a href=\"https://www.usenix.org/conference/osdi-02/practical-transparent-operating-system-support-superpages\" class=\"external-link\" rel=\"noreferrer\">Juan Navarro, Sitaram Iyer,\nPeter Druschel, and Alan Cox. Practical, transparent operating system\nsupport for superpages. SIGOPS Oper.  Syst. Rev., 36(SI):89-104,\nDecember 2002.</a>  This reference summarizes\n  superpage-implementations\n  for different OSes:\n  <a href=\"https://www.usenix.org/conference/atc20/presentation/zhu-weixi\" class=\"external-link\" rel=\"noreferrer\">A\n\t   comprehensive analysis of superpage management mechanism\n\t   and policies</a>.\n  \n<!-- START SECTION: submit -->\n</p><p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"06\">Submit the lab</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"06.1\">Time spent</h3>\n\n<p>Create a new file, <tt>time.txt</tt>, and put in a single integer, the\nnumber of hours you spent on the lab.\n<kbd>git add</kbd> and <kbd>git commit</kbd> the file.\n\n</p><h3 id=\"answers\" data-section-number=\"06.2\">Answers</h3>\n\n<p>If this lab had questions, write up your answers in <tt>answers-*.txt</tt>.\n<kbd>git add</kbd> and <kbd>git commit</kbd> these files.\n\n</p><h3 id=\"submit\" data-section-number=\"06.3\">Submit</h3>\n\n<p>Assignment submissions are handled by Gradescope.\nYou will need an MIT gradescope account.\nSee Piazza for the entry code to join the class.\nUse <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">this link</a>\nif you need more help joining.\n\n</p><p>When you're ready to submit, run <kbd>make zipball</kbd>,\nwhich will generate <tt>lab.zip</tt>.\nUpload this zip file to the corresponding Gradescope assignment.\n\n</p><p> If you run <kbd>make zipball</kbd> and you have either uncomitted changes or\nuntracked files, you will see output similar to the following:\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\nInspect the above lines and make sure all files that your lab solution needs\nare tracked, i.e., not listed in a line that begins with <tt>??</tt>.\nYou can cause <tt>git</tt> to track a new file that you create using\n<kbd>git add {filename}</kbd>.\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>Please run <kbd>make grade</kbd> to ensure that your code passes all of the tests.\n    The Gradescope autograder will use the same grading program to assign your submission a grade.</li>\n  <li>Commit any modified source code before running <kbd>make zipball</kbd>.</li>\n  <li>You can inspect the status of your submission and download the submitted\n    code at Gradescope. The Gradescope lab grade is your final lab grade.</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercises\" data-section-number=\"07\">Optional challenge exercises</h2>\n\n<ul>\n\n  <li>Implement some ideas from the paper referenced above to make\n    your super-page design more real.\n\n  </li><li>Unmap the first page of a user process so that dereferencing a\n  null pointer will result in a fault.  You will have to\n  change <tt>user.ld</tt> to start the user text segment at, for\n  example, 4096, instead of 0.\n\n  </li><li>Add a system call that reports dirty pages (modified pages) using <tt>PTE_D</tt>.\n\n</li></ul>\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 7,
+    "h3": 3,
+    "paragraphs": 23,
+    "codeBlocks": 4,
+    "links": 7,
+    "lists": 7,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 7,
+    "h3": 3,
+    "paragraphs": 23,
+    "codeBlocks": 4,
+    "links": 7,
+    "lists": 7,
+    "tables": 0,
+    "figures": 0
+  }
+}

@@ -1,0 +1,27 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="xv6 Reader" description="A quiet local reader for the MIT 6.1810 Labs and the official xv6 book.">
+  <div class="index-shell home-shell">
+    <header class="index-heading">
+      <h1>Read xv6.<br>Keep the source close.</h1>
+      <p>A local, searchable reading view for the MIT 6.1810 Fall 2026 Labs and the official xv6 book.</p>
+    </header>
+
+    <nav class="collection-links" aria-label="Collections">
+      <a class="collection-link" href="/labs/">
+        <span class="collection-link__number">01</span>
+        <strong>MIT 6.1810 Labs</strong>
+        <span class="collection-link__meta">9 labs</span>
+      </a>
+      <a class="collection-link" href="/book/">
+        <span class="collection-link__number">02</span>
+        <strong>The xv6 book</strong>
+        <span class="collection-link__meta">14 chapters</span>
+      </a>
+    </nav>
+
+    <p class="home-note">Press <kbd>⌘</kbd><kbd>K</kbd> or <kbd>Ctrl</kbd><kbd>K</kbd> to search across both collections.</p>
+  </div>
+</BaseLayout>

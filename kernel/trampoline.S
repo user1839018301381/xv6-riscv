@@ -1,13 +1,11 @@
         #
-        # low-level code to handle traps from user space into
-        # the kernel, and returns from kernel to user.
+        # ユーザ空間からカーネルへのトラップを処理し、
+        # カーネルからユーザへ戻る低レベルコード。
         #
-        # the kernel maps the page holding this code
-        # at the same virtual address (TRAMPOLINE)
-        # in user and kernel space so that it continues
-        # to work when it switches page tables.
-        # kernel.ld causes this code to start at 
-        # a page boundary.
+        # カーネルはこのコードを含むページをユーザ空間とカーネル空間で
+        # 同じ仮想アドレス（TRAMPOLINE）にマップするため、
+        # ページテーブルを切り替えても動作し続ける。
+        # kernel.ldはこのコードがページ境界から始まるようにする。
         #
 
 #include "riscv.h"
@@ -21,22 +19,22 @@ trampoline:
 .globl uservec
 uservec:    
 	#
-        # trap.c sets stvec to point here, so
-        # traps from user space start here,
-        # in supervisor mode, but with a
-        # user page table.
+        # trap.cはstvecがここを指すよう設定する。
+        # そのためユーザ空間からのトラップは、
+        # スーパーバイザモードで、ユーザページテーブルを使って
+        # ここから始まる。
         #
 
-        # save user a0 in sscratch so
-        # a0 can be used to get at TRAPFRAME.
+        # ユーザのa0をsscratchに保存し、
+        # a0をTRAPFRAME取得用に使えるようにする。
         csrw sscratch, a0
 
-        # each process has a separate p->trapframe memory area,
-        # but it's mapped to the same virtual address
-        # (TRAPFRAME) in every process's user page table.
+        # 各プロセスは別々のp->trapframeメモリ領域を持つが、
+        # 各プロセスのユーザページテーブルでは同じ仮想アドレス
+        # （TRAPFRAME）にマップされる。
         li a0, TRAPFRAME
         
-        # save the user registers in TRAPFRAME
+        # ユーザレジスタをTRAPFRAMEに保存する
         sd ra, 40(a0)
         sd sp, 48(a0)
         sd gp, 56(a0)
@@ -68,52 +66,51 @@ uservec:
         sd t5, 272(a0)
         sd t6, 280(a0)
 
-	# save the user a0 in p->trapframe->a0
+	# ユーザのa0をp->trapframe->a0に保存する
         csrr t0, sscratch
         sd t0, 112(a0)
 
-        # initialize kernel stack pointer, from p->trapframe->kernel_sp
+        # p->trapframe->kernel_spからカーネルスタックポインタを初期化する
         ld sp, 8(a0)
 
-        # make tp hold the current hartid, from p->trapframe->kernel_hartid
+        # p->trapframe->kernel_hartidから現在のhartidをtpに設定する
         ld tp, 32(a0)
 
-        # load the address of usertrap(), from p->trapframe->kernel_trap
+        # p->trapframe->kernel_trapからusertrap()のアドレスを読み込む
         ld t0, 16(a0)
 
-        # fetch the kernel page table address, from p->trapframe->kernel_satp.
+        # p->trapframe->kernel_satpからカーネルページテーブルのアドレスを取得する。
         ld t1, 0(a0)
 
-        # wait for any previous memory operations to complete, so that
-        # they use the user page table.
+        # 先行するメモリ操作がユーザページテーブルを使うよう、完了を待つ。
         sfence.vma zero, zero
 
-        # install the kernel page table.
+        # カーネルページテーブルを設定する。
         csrw satp, t1
 
-        # flush now-stale user entries from the TLB.
+        # 古くなったユーザエントリをTLBからフラッシュする。
         sfence.vma zero, zero
 
-        # call usertrap()
+        # usertrap()を呼ぶ
         jalr t0
 
 .globl userret
 userret:
-        # usertrap() returns here, with user satp in a0.
-        # return from kernel to user.
+        # usertrap()はユーザsatpをa0に入れてここへ戻る。
+        # カーネルからユーザへ戻る。
 
-        # flush icache, in case this is the first time
-        # we're running this proc on this hart.
+        # このhartでこのプロセスを実行するのが初めての場合に備え、
+        # 命令キャッシュをフラッシュする。
         fence.i
 
-        # switch to the user page table.
+        # ユーザページテーブルへ切り替える。
         sfence.vma zero, zero
         csrw satp, a0
         sfence.vma zero, zero
 
         li a0, TRAPFRAME
 
-        # restore all but a0 from TRAPFRAME
+        # a0以外をTRAPFRAMEから復元する
         ld ra, 40(a0)
         ld sp, 48(a0)
         ld gp, 56(a0)
@@ -145,9 +142,9 @@ userret:
         ld t5, 272(a0)
         ld t6, 280(a0)
 
-	# restore user a0
+	# ユーザのa0を復元する
         ld a0, 112(a0)
         
-        # return to user mode and user pc.
-        # prepare_return() sets up sstatus and sepc.
+        # ユーザモードとユーザpcへ戻る。
+        # prepare_return()がsstatusとsepcを設定している。
         sret

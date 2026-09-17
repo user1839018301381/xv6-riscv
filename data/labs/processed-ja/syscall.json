@@ -1,0 +1,85 @@
+{
+  "slug": "syscall",
+  "title": "ラボ: システムコール",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/syscall.html",
+  "fetchedAt": "2026-09-17T03:57:14.496Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "using-gdb",
+      "text": "gdbの使用",
+      "number": "01"
+    },
+    {
+      "depth": 2,
+      "id": "sandbox-a-command",
+      "text": "コマンドをサンドボックス化する",
+      "number": "02"
+    },
+    {
+      "depth": 2,
+      "id": "sandbox-with-allowed-pathnames",
+      "text": "許可されたパス名を持つサンドボックス",
+      "number": "03"
+    },
+    {
+      "depth": 2,
+      "id": "attack-xv6",
+      "text": "攻撃xv6",
+      "number": "04"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "ラボを送信する",
+      "number": "05"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "費やした時間",
+      "number": "05.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "答え",
+      "number": "05.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "送信する",
+      "number": "05.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercises",
+      "text": "オプションのチャレンジ演習",
+      "number": "06"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-system-calls\">ラボ: システムコール</h1>\n\n<p>前回のラボでは、システム コールを使用していくつかのユーティリティを作成しました。で\nこのラボでは、新しいシステム コールを xv6 に追加します。これは役立ちます。\nあなたはそれらがどのように機能するかを理解し、いくつかのことを知ることができます。\nxv6 カーネルの内部。 後でさらにシステムコールを追加します\n研究室。\n\n</p><div class=\"lab-prereq\">\n<p>コーディングを開始する前に、次の第 2 章を読んでください。 \nの <a href=\"/book/chapter-2/\" class=\"book-link\">xv6 本</a>、そして\n 第 4 章のセクション 4.3 および 4.4、および\n 関連するソース ファイル:\n\n  </p><ul>\n\n    <li> システムコールをカーネルにルーティングするユーザー空間の「スタブ」は、 <tt>user/usys.S</tt>、\n によって生成される <tt>user/usys.pl</tt> 走るとき <tt>make</tt>。 \n宣言が入っています <tt>user/user.h</tt>\n\n    </li><li> システムコールをルーティングするカーネル空間コード。 \nそれを実装するカーネル関数\n いる <tt>kernel/syscall.c</tt> そして <tt>kernel/syscall.h</tt>。\n\n    </li><li> プロセス関連のコードは <tt>kernel/proc.h</tt> そして <tt>kernel/proc.c</tt>。\n\n  </li></ul>\n</div>\n\n<p>ラボを開始するには、syscall ブランチに切り替えます。\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ git fetch\n  $ git checkout syscall\n  $ make clean\n  </code></pre>\n\n<h2 id=\"using-gdb\" data-section-number=\"01\">gdbの使用 </h2>\n\n<p>多くの場合、print ステートメントで十分にデバッグできます。\nカーネルを使用しますが、コードをシングルステップ実行すると便利な場合もあります\nまたはスタックのバックトレースを取得します。\nGDB デバッガーが役に立ちます。\n\n</p><p> gdb に慣れるために、次を実行します。 <kbd>make qemu-gdb</kbd> \nxv6 ディレクトリにあり、\n次に、同じ xv6 ディレクトリ内の別のウィンドウで gdb を起動します。\n(gdb 資料を参照してください。 <a href=\"https://pdos.csail.mit.edu/6.S081/2026/labs/tools.html\">ツール</a>\nそして <a href=\"https://pdos.csail.mit.edu/6.S081/2026/labs/labs/guidance.html\">指導</a> ページ):\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ gdb\n...\nThe target architecture is <span class=\"hljs-built_in\">set</span> to <span class=\"hljs-string\">\"riscv:rv64\"</span>.\n...\n0x0000000000001000 <span class=\"hljs-keyword\">in</span> ?? ()\n(gdb) b syscall\nBreakpoint 1 at 0x80002142: file kernel/syscall.c, line 243.\n(gdb) c\nContinuing.\n[Switching to Thread 1.2]\n\nThread 2 hit Breakpoint 1, syscall () at kernel/syscall.c:243\n243     {\n(gdb) layout src\n(gdb) backtrace</code></pre>\n\n<p>\ngdb が印刷する場合 <tt>Undefined item: \"riscv:rv64\"</tt>、必要になるかもしれません\n走る <tt>gdb-multiarch</tt> ただの代わりに <tt>gdb</tt>\n(を参照してください。 <a href=\"https://pdos.csail.mit.edu/6.S081/2026/labs/tools.html\">ツールページ</a> 取り付け用\n指示）。 gdb が riscv:rv64 についてまったく言及していない場合は、次のようにすることができます。\nxv6 ディレクトリ以外のディレクトリで gdb を実行している。\n\n</p><p>の <tt>layout</tt> コマンドはウィンドウを 2 つに分割し、どこにあるかを示します\n gdbはソースコードにあります。 <tt>backtrace</tt> を印刷します\n スタック\n バックトレース。\n\n\n</p><p>で次の質問に答えてください <tt>answers-syscall.txt</tt>。\n\n  </p><div class=\"lab-question\">\n    バックトレース出力を確認すると、どの関数が機能するか\n 呼ばれた <tt>syscall</tt>?\n  </div>\n\n<p> タイプ <kbd>n</kbd> 何度か通り過ぎて <tt> struct proc *p = myproc();</tt>\n    このステートメントを過ぎたら、次のように入力します。 <kbd>p /x\n    *p</kbd>、現在のプロセスを出力します。 <tt>proc struct</tt>\n    (参照 <tt>kernel/proc.h&gt;</tt>) 16 進数。\n\n  </p><div class=\"lab-question\">\n    の価値は何ですか <tt>p-&gt;trapframe-&gt;a7</tt> それは何ですか\n 値は表しますか？ (ヒント:見てください <tt>user/init.c</tt>、最初のユーザー プログラム xv6 が開始され、そのコンパイルされたアセンブリ <tt> user/init.asm</tt>。）\n  </div>\n\n<p>プロセッサはスーパーバイザ モードで実行されており、特権付きで印刷できます。 \nなどのレジスタ <tt>sstatus</tt>\n  (参照 <a href=\"https://github.com/riscv/riscv-isa-manual/releases/download/Priv-v1.12/riscv-privileged-20211203.pdf\" class=\"external-link\" rel=\"noreferrer\">RISC-V\n 特権命令</a> 説明のために):\n\n  </p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">    (gdb) p /x $sstatus\n  </code></pre>\n\n   <div class=\"lab-question\">\n     CPU が以前使用していたモードは何でしたか?\n   </div>\n\n<p>xv6 カーネル コードには、失敗する一貫性チェックが含まれています。 \nカーネルをパニックに陥らせます。カーネルの変更が見つかるかもしれません\n パニックを引き起こす。 \nたとえば、次のステートメントを置き換えます。 <tt>num = p-&gt;trapframe-&gt;a7;</tt>\nと\n  <tt>num = * (int *) 0;</tt>\n  の初めに <tt>syscall</tt>、走る <kbd>make\n  qemu</kbd>すると、次のような内容が表示されます。\n  </p><pre data-language=\"makefile\" tabindex=\"0\"><code class=\"hljs language-makefile\">xv6 kernel is booting\n\nhart 2 starting\nhart 1 starting\nscause=0xd sepc=0x80001bfe stval=0x0\n<span class=\"hljs-section\">panic: kerneltrap</span>\n  </code></pre>\nからやめる <tt>qemu</tt>。\n\n<p>カーネル ページフォールト パニックの原因を追跡するには、次のように検索します。 \nの <tt>sepc</tt> 先ほど確認したパニックに対して出力された値\n で\n ファイル <tt>kernel/kernel.asm</tt>、これには、\n コンパイルされたカーネル。\n\n  </p><div class=\"lab-question\">\n    カーネルがパニックを起こしているアセンブリ命令を書き留めます。 \nどのレジスタが変数に対応するか <tt>num</tt>?\n  </div>\n\n<p>プロセッサとカーネルの状態を検査するには\n障害のある命令を検出し、gdb を起動し、ブレークポイントを設定します。\n故障している <tt>epc</tt>、次のように:\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">(gdb) b *0x80001bfe\nBreakpoint 1 at 0x80001bfe: file kernel/syscall.c, line 138.\n(gdb) layout asm\n(gdb) c\nContinuing.\n[Switching to Thread 1.3]\n\nThread 3 hit Breakpoint 1, syscall () at kernel/syscall.c:138</code></pre>\n\n<p>問題のあるアセンブリ命令がアセンブリ命令と同じであることを確認します。 \n上で見つけたもの。\n\n  </p><div class=\"lab-question\">\n    カーネルがクラッシュするのはなぜですか?ヒント: 本文の図 3-3 を見てください。 \nアドレス 0 はカーネル アドレス空間にマッピングされていますか? あれですか\n の値で確認 <tt>scause</tt> 上に？ (説明を参照\n の <tt>scause</tt>\n    で <a href=\"https://github.com/riscv/riscv-isa-manual/releases/download/Priv-v1.12/riscv-privileged-20211203.pdf\" class=\"external-link\" rel=\"noreferrer\">RISC-V\n 特権命令</a>）\n  </div>\n\n<p>注意してください <tt>scause</tt> 上記のカーネルパニックによって出力されました。 \nしかし、多くの場合、問題を追跡するには追加情報を確認する必要があります。 \nパニックを引き起こした問題。 たとえば、どのユーザーを確認するには\n カーネルがパニックになったときにプロセスが実行されていた場合は、\n プロセスの名前:\n  </p><pre data-language=\"c\" tabindex=\"0\"><code class=\"hljs language-c\">    (gdb) p p-&gt;name\n  </code></pre>\n\n    <div class=\"lab-question\">\n      カーネルが起動したときに実行されていたプロセスの名前は何ですか?\n パニックになった？ プロセス ID は何ですか (<tt>pid</tt>）？\n  </div>\n\n<p>もう一度見直してみるとよいでしょう\n  <a href=\"https://pdos.csail.mit.edu/6.828/2019/lec/gdb_slides.pdf\">使用する\n GNU デバッガー</a> 必要に応じて。 \nの <a href=\"https://pdos.csail.mit.edu/6.S081/2026/labs/labs/guidance.html\">案内ページ</a> も持っています\n デバッグのヒント。\n\n</p><h2 id=\"sandbox-a-command\" data-section-number=\"02\">コマンドをサンドボックス化する</h2>\n\n<p>\n</p><div class=\"lab-required\">\n  この課題では、プロセスを「サンドボックス化」して、\n 実行できるシステムコール。 たとえば、プロセスをサンドボックス化する場合があります。 \nファイルを開くことを禁止します。新しいものを作成します <tt>interpose</tt>\n  どのシステムがカーネルを呼び出すかを指定するシステムコール\n 呼び出しプロセスから拒否する必要があります。 <tt>interpose</tt> すべきです\n 整数マスクとパスの 2 つの引数を取ります。マスクの切れ端\n どのシステムコールを拒否するかを指定します。 2 番目の引数は、\n 次の課題で使用し、この課題では\n いつも <tt>\"-\"</tt>。たとえば、プロセスが\n 自分自身がオープン システム コールを使用できないようにします。 \nそれは電話するはずです <tt>interpose(1 &lt;&lt; SYS_open, \"-\")</tt>、\n どこで <tt>SYS_open</tt> システムコール番号です\n から <tt>kernel/syscall.h</tt>。実装では次のような問題が発生するはずです\n マスクはフォークの子に継承されるため、子は\n 親の制限を継承します。\n\t\t\t\t\t\t\t      \n</div>\n\n私たちはあなたに、 <tt>user/sandbox.c</tt> ユーザープログラムは、\nフォーク、コール <tt>interpose()</tt> 子、そして実行\n子供の中にあるプログラム。\n実装が完了したら <tt>interpose()</tt>、\n次のような出力が表示されるはずです。\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ sandbox 32768 - <span class=\"hljs-built_in\">cat</span> README\n<span class=\"hljs-built_in\">cat</span>: cannot open README\n$  </code></pre>\n\n<p>この例では、 <tt>cat README</tt> はコマンドです\nサンドボックス化されている。 32768 は、拒否するシステム コールのマスクです。\nこの例ではそれは <tt>1&lt;&lt;SYS_open</tt>。もし\nあなたの解決策が正しい場合、「cat: can't open README」が表示されるはずです。\n\n</p><p>テストに合格すると、ソリューションは満点を獲得します\n で <tt>grade-lab-syscall sandbox_mask</tt>:\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ ./grade-lab-syscall sandbox_mask\n== Test sandbox_mask == sandbox_mask: OK (1.5s) \n  </code></pre>\n  \n<p>いくつかのヒント:\n  </p><ul>\n\n    <li><p>追加 <tt>$U/_sandbox</tt> Makefile の UPROGS へ\n\n    </p></li><li><p>走る <kbd>make qemu</kbd> そして、あなたはそれがわかるでしょう\n コンパイラがコンパイルできない <tt>user/sandbox.c</tt>、なぜなら、\n のユーザースペーススタブ <tt>interpose</tt> システムコールはまだ存在しません: を追加してください\n のプロトタイプ <tt>interpose</tt> に <tt>user/user.h</tt>、半券\n に <tt>user/usys.pl</tt>、およびシステムコール番号\n に <tt>kernel/syscall.h</tt>。 Makefile は Perl を呼び出します\n スクリプト <tt>user/usys.pl</tt>を生成します。 <tt>user/usys.S</tt>、\n 実際のシステム コール スタブ。 \nRISC-V <tt>ecall</tt> に移行するための指示\n カーネル。コンパイルの問題を修正したら、\n 走る <kbd>sandbox 32768 - cat README</kbd> xv6 シェル内。それは失敗するだろう\n カーネルにシステムコールを実装していないため\n まだ。\n\n    </p></li><li><p>追加 <tt>sys_interpose()</tt> 機能\n で <tt>kernel/sysproc.c</tt> 新しいシステムを実装するのは\n 新しいフィールドにマスク引数を記録して呼び出します。 \nの <tt>proc</tt> 構造（参照 <tt>kernel/proc.h</tt>）。 \nの\n ユーザー空間からシステムコール引数を取得する関数\n いる <tt>kernel/syscall.c</tt>の例を見ることができます。 \nでの使用 <tt>kernel/sysproc.c</tt>。 を追加してください\n 新しい <tt>sys_interpose</tt> に <tt>syscalls</tt> 配列\n で <tt>kernel/syscall.c</tt>。\n   </p></li>\n\n    <li><p>変更 <tt>kfork()</tt> (参照 <tt>kernel/proc.c</tt>) コピーする\n 親プロセスから子プロセスへのマスク。\n\n    </p></li><li><p>を変更します。 <tt>syscall()</tt> 機能\n で <tt>kernel/syscall.c</tt> システムコールが必要かどうかを確認するには\n 拒否される。\n\n  </p></li></ul>\n\n<h2 id=\"sandbox-with-allowed-pathnames\" data-section-number=\"03\">許可されたパス名を持つサンドボックス</h2>\n\n<p>\n  </p><div class=\"lab-required\">\n    この課題では、サンドボックスを拡張してマスクを許可します。\n    <tt>open</tt> そして <tt>exec</tt> パス名に基づくシステムコール\n 彼らは使っています。 の 2 番目の引数 <tt>sys_interpose</tt> です\n パス名は許可されます。 もし <tt>open</tt> または <tt>exec</tt> マスクされていますが、\n パス名が許可されたパス名と一致すると、これらのシステムが呼び出されます。 \n許可されるべきです。\n\n</div>\n\n完了すると、次のような出力が表示されるはずです。\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ sandbox 32768 README grep xv6 README\nxv6 is a re-implementation of Dennis Ritchie<span class=\"hljs-string\">'s and Ken Thompson'</span>s Unix\nVersion 6 (v6).  xv6 loosely follows the structure and style of v6,\nxv6 is inspired by John Lions<span class=\"hljs-string\">'s Commentary on UNIX 6th Edition (Peer\n(kaashoek,rtm@mit.edu).  The main purpose of xv6 is as a teaching\n$ sandbox 32768 README grep xv6 x\ngrep: cannot open x</span></code></pre>\n\n<p>この例では、サンドボックスにより次のことが可能になります。 <tt>open</tt> それを呼びます\nアクセス <tt>README</tt>、ただし、他のファイル (x など) は対象外です。\n\n</p><p>サンドボックス テストに合格した場合、ソリューションは正しいです。 <tt>make grade</tt>:\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ make grade\n...\n== Test sandbox_mask == \n$ make qemu-gdb\nsandbox_mask: OK (9.5s) \n== Test sandbox_fork == \n$ make qemu-gdb\nsandbox_fork: OK (0.3s) \n== Test sandbox_path == \n$ make qemu-gdb\nsandbox_path: OK (1.1s) \n== Test sandbox_most == \n$ make qemu-gdb\nsandbox_most: OK (0.8s) \n== Test sandbox_minus == \n$ make qemu-gdb\nsandbox_minus: OK (1.1s) \n...\n  </code></pre>\n  \n<p>いくつかのヒント:\n  </p><ul>\n\n    <li><p>変更 <tt>sys_interpose()</tt> 許可されていることを覚えておく\n パス名。\n\t<tt>argstr</tt> パス名を取得するのに便利です。あなた\n サイズのバッファを宣言できます <tt>MAXPATH</tt> で <tt>proc</tt> 構造体。\n\t\n   </p></li>\n\n    <li><p>もし <tt>open</tt> または <tt>exec</tt> マスクされているかどうかを確認してください\n pathname は、許可されたパス名と一致します。その場合は、許可してください\n これらのシステムコールの実行。 \n    </p></li>\n  </ul>\n\n<h2 id=\"attack-xv6\" data-section-number=\"04\">攻撃xv6 </h2>\n\n<p>xv6 カーネルは、ユーザー プログラムを相互に分離し、分離します。 \nユーザープログラムからのカーネル。 上記の課題で見たように、\n アプリケーションはカーネルまたはカーネル内の関数を直接呼び出すことはできません。 \n別のユーザープログラム。代わりに、インタラクションはシステムを通じてのみ発生します。 \n呼び出します。 ただし、カーネルのシステム実装にバグがある場合は、\n 呼び出しを行うと、攻撃者がそのバグを悪用して、\n 隔離境界線。 バグがどのように悪用されるかを理解するために、\n xv6 にバグが導入されており、あなたの目標はそのバグを悪用して、\n 別のプロセスからシークレットを盗みます。\n  \n</p><p>バグは、への呼び出しです。 <tt>memset(mem, 0, sz)</tt> で <tt>uvmalloc()</tt>\n  で <tt>kernel/vm.c</tt> 新しく割り当てられたページをクリアするのは省略されています\n このラボをコンパイルするとき。 同様に、\n コンパイル <tt>kernel/kalloc.c</tt> このラボでは、次の 2 行が\n 使う <tt>memset</tt> フリーページにゴミを入れるのは省略します。 の\n これら 3 行を省略した場合の最終的な影響 (すべて でマークされています) <tt>ifndef\n  LAB_SYSCALL</tt>) 新しく割り当てられたメモリには、\n 以前の使用時の内容。 \nしたがって、呼び出すアプリケーションは <tt>sbrk()</tt> メモリを割り当てる\n 以前の使用によるデータが含まれるページを受信する場合があります。 \n3 行が削除されているにもかかわらず、xv6 はほとんど正しく動作します。 \nほとんどを通過します <tt>usertests</tt>。\n\n  </p><div class=\"lab-required\">\n    <p><tt>user/secret.c</tt> 秘密の文字列をメモリに書き込み、\n その後終了します (メモリが解放されます)。 \nあなたの目標は、数行のコードを追加することです\n に <tt>user/attack.c</tt> その秘密を見つけるために\n 以前の実行 <tt>secret.c</tt> 記憶に書き込まれ、\n そしてシークレットを単独で行に出力します。\n      \n    </p><p>カーネルの変更に依存したり、\n    <tt>secret.c</tt> ラボのこの部分については。役立つように何でも変更できます\n 実験とデバッグを行いますが、その前にそれらの変更を元に戻す必要があります\n 最終テストと提出。\n  </p></div>\n\n\n\nの <tt>secret</tt> プログラムはシークレットを引数として受け取ります。できます\nあなたのをテストしてください <tt>attack</tt> 実行してプログラムする <tt>secret</tt> と\nいくつかの引数を付けてから実行します <tt>attack</tt>、そして、\n<tt>attack</tt> 渡された引数を正確に出力します <tt>secret</tt>。\n成功した実行は次のとおりです。\n<pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ secret xyzzy\n$ attack\nxyzzy\n$</code></pre>\n\n<p>\n攻撃の実装方法に応じて、次のコマンドを実行する必要がある場合があります。\n<tt>attack</tt> もう一度、秘密を見つけるために。の\n採点者が走る <tt>attack</tt> 念のため2回、次の場合は満足です\nどちらかが秘密を生成します。\n\n</p><p>\nxv6 の外部からは、次のように使用できます。 <tt>./grade-lab-syscall attack</tt>、\nまたは <tt>make grade</tt>、に\n攻撃がテストに合格するかどうかを確認してください。\nテストで生成される秘密の文字列には、次のものが含まれることが保証されています。\n数字と大文字と小文字のみ。\n      \n</p><p>この例のように、正確さに直接影響しないバグが発生する場合があります。 \nセキュリティを破るために悪用されます。 \n慎重なプログラミングと広範なテストにより、数を減らすことができます\n バグは含まれますが、バグがないことは保証できません。 \nxv6 には過去にもバグがあり、おそらくまだ発見されていないバグがあるでしょう。 \nエラー。 \n実際のカーネルにはさらに多くの機能があります\n xv6 よりも古いコードには、そのようなバグの長い歴史があります。たとえば、次を参照してください。 \nの\n 公共の <a href=\"https://www.opencve.io/cve?vendor=linux&amp;product=linux_kernel\" class=\"external-link\" rel=\"noreferrer\">Linux\n 脆弱性</a> そして\n  <a href=\"https://docs.kernel.org/process/security-bugs.html\" class=\"external-link\" rel=\"noreferrer\">どうやって\n 脆弱性を報告する</a>。\n      \n<!-- START SECTION: submit -->\n</p><p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"05\">ラボを送信する</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"05.1\">費やした時間</h3>\n\n<p>新しいファイルを作成し、 <tt>time.txt</tt>、単一の整数を入力すると、\nラボに費やした時間数。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> ファイル。\n\n</p><h3 id=\"answers\" data-section-number=\"05.2\">答え</h3>\n\n<p>このラボに質問がある場合は、回答を次の場所に記入してください <tt>answers-*.txt</tt>。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> これらのファイル。\n\n</p><h3 id=\"submit\" data-section-number=\"05.3\">送信する</h3>\n\n<p>課題の提出は Gradescope によって処理されます。\nMIT グレードスコープ アカウントが必要です。\nクラスに参加するためのエントリー コードについては、Piazza を参照してください。\n使用する <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">このリンク</a>\n参加にさらにサポートが必要な場合。\n\n</p><p>送信する準備ができたら、実行します <kbd>make zipball</kbd>、\n生成するもの <tt>lab.zip</tt>。\nこの zip ファイルを対応する Gradescope 課題にアップロードします。\n\n</p><p> 走れば <kbd>make zipball</kbd> コミットされていない変更があるか、\n追跡されていないファイルの場合は、次のような出力が表示されます。\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\n上記の行を調べて、ラボ ソリューションに必要なすべてのファイルを確認してください。\n追跡されます。つまり、で始まる行にはリストされません。 <tt>??</tt>。\nあなたが引き起こすことができます <tt>git</tt> を使用して作成した新しいファイルを追跡するには\n<kbd>git add {filename}</kbd>。\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>走ってください <kbd>make grade</kbd> コードがすべてのテストに合格することを確認します。 \nGradescope 自動採点機能は、同じ採点プログラムを使用して提出物に成績を割り当てます。</li>\n  <li>実行前に変更したソース コードをコミットする <kbd>make zipball</kbd>。</li>\n  <li>提出物のステータスを確認し、提出済みのファイルをダウンロードできます。 \nGradescope のコード。 Gradescope のラボ成績が最終的なラボ成績です。</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercises\" data-section-number=\"06\">オプションのチャレンジ演習</h2>\n\n<ul>\n\n  <li>敵対者がプロセスを中断できるようにする xv6 のバグを見つける\n カーネルを分離するかクラッシュして、私たちに知らせてください。 (サイドチャネルなど\n メルトダウンは対象外です。ただし、それらについてはで説明します。 \n講義。） </li>\n\n</ul>\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 6,
+    "h3": 3,
+    "paragraphs": 46,
+    "codeBlocks": 12,
+    "links": 11,
+    "lists": 5,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 6,
+    "h3": 3,
+    "paragraphs": 46,
+    "codeBlocks": 12,
+    "links": 11,
+    "lists": 5,
+    "tables": 0,
+    "figures": 0
+  }
+}

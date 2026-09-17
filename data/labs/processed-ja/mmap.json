@@ -1,0 +1,61 @@
+{
+  "slug": "mmap",
+  "title": "ラボ: mmap",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/mmap.html",
+  "fetchedAt": "2026-09-17T03:57:37.748Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "ラボを送信する",
+      "number": "01"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "費やした時間",
+      "number": "01.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "答え",
+      "number": "01.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "送信する",
+      "number": "01.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenges",
+      "text": "オプションのチャレンジ",
+      "number": "02"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-mmap\">ラボ: mmap </h1>\n\nの <tt>mmap</tt> そして <tt>munmap</tt> システムコールによりUNIXプログラムが許可される\nアドレス空間を詳細に制御できます。使用できます\nプロセス間でメモリを共有し、ファイルをプロセス アドレスにマップする\nスペース、およびユーザーレベルのページフォールトスキームの一部として\nガベージ コレクション アルゴリズムについては講義で説明します。\nこのラボでは以下を追加します <tt>mmap</tt> そして <tt>munmap</tt>\nxv6 に移行し、メモリ マップト ファイルに焦点を当てています。\n\n<p>ラボ用の xv6 ソースを取得し、 <tt>mmap</tt> 支店:\n\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ git fetch\n  $ git checkout mmap\n  $ make clean</code></pre>\n\n<p>\nマニュアルページ\n(走る <kbd>man 2 mmap</kbd>) は、この宣言を示します <tt>mmap</tt>:\n</p><pre data-language=\"c\" tabindex=\"0\"><code class=\"hljs language-c\"><span class=\"hljs-type\">void</span> *<span class=\"hljs-title function_\">mmap</span><span class=\"hljs-params\">(<span class=\"hljs-type\">void</span> *addr, <span class=\"hljs-type\">size_t</span> len, <span class=\"hljs-type\">int</span> prot, <span class=\"hljs-type\">int</span> flags,\n           <span class=\"hljs-type\">int</span> fd, <span class=\"hljs-type\">off_t</span> offset)</span>;</code></pre>\n<p>\n<tt>mmap</tt> いろいろな呼び方ができますが、\nただし、このラボで必要なのは\nファイルのメモリ マッピングに関連する機能のサブセット。\n次のように仮定できます\n<tt>addr</tt> 常にゼロになります。つまり、\nカーネルは、ファイルをマップする仮想アドレスを決定する必要があります。\n<tt>mmap</tt> そのアドレス、または 0xffffffffffffffff を返します。\nそれは失敗します。\n<tt>len</tt> マップするバイト数です。そうじゃないかもしれない\nファイルの長さと同じです。\n<tt>prot</tt> メモリをマップする必要があるかどうかを示します\n読み取り可能、書き込み可能、および/または実行可能。仮定できます\nそれ <tt>prot</tt> です <tt>PROT_READ</tt> または <tt>PROT_WRITE</tt>\nまたは両方。\n<tt>flags</tt> どちらかになります <tt>MAP_SHARED</tt>、\nつまり、マップされたメモリへの変更は次のとおりです。\nファイルに書き戻されるか、または <tt>MAP_PRIVATE</tt>、\nすべきではないという意味です。何も実装する必要はありません\n他のビット <tt>flags</tt>。\n<tt>fd</tt> マップするファイルのオープン ファイル記述子です。\n仮定することができます <tt>offset</tt> ゼロです (それが出発点です)\nマップするファイル内)。\n\n</p><p>\n実装では満たす必要があります\nページ フォールトに応答して、ページ テーブルに遅延的に書き込まれます。\nつまり、 <tt>mmap</tt> それ自体が物理メモリを割り当てるべきではない、または\nファイルを読みます。代わりに、ページフォールト処理コードでそれを実行してください\nで（または呼び出されて） <tt>usertrap</tt>、コピーオンライトのラボと同様です。\n怠ける理由は、次のことを確実にするためです。 <tt>mmap</tt> の\n大きなファイルは高速であり、 <tt>mmap</tt> ファイルのサイズが大きい\n物理メモリよりも可能です。\n\n</p><p>\n同じマップのプロセスであれば問題ありません <tt>MAP_SHARED</tt>\nファイルを実行する <b>そうではない</b> 物理ページを共有します。\n\n</p><p>\nマニュアルページ\n(走る <kbd>man 2 munmap</kbd>) は、この宣言を示します <tt>munmap</tt>:\n</p><pre data-language=\"c\" tabindex=\"0\"><code class=\"hljs language-c\"><span class=\"hljs-type\">int</span> <span class=\"hljs-title function_\">munmap</span><span class=\"hljs-params\">(<span class=\"hljs-type\">void</span> *addr, <span class=\"hljs-type\">size_t</span> len)</span>;</code></pre>\n<p>\n<tt>munmap</tt> mmap マッピングを削除する必要があります\n指定されたアドレス範囲 (存在する場合)。プロセスによってメモリが変更された場合、\nマッピングされていますか <tt>MAP_SHARED</tt>、変更は最初に行う必要があります\nファイルに書き込まれます。アン <tt>munmap</tt> 通話では、\nmmap 化された領域の一部ですが、次のいずれかになると想定できます。\n開始時、終了時、または領域全体でマップを解除します (パンチはしません)\n領域の中央にある穴)。プロセスが終了すると、\n行われた変更 <tt>MAP_SHARED</tt> 地域はこうあるべきです\nあたかもプロセスが呼び出したかのように、関連ファイルに書き込まれます。 <tt>munmap</tt>。\n\n</p><div class=\"lab-required\">\n<p>\n十分に実装する必要があります <tt>mmap</tt> そして <tt>munmap</tt>\nを実現するための機能\n<tt>mmaptest</tt> テストプログラムの作業。もし <tt>mmaptest</tt>\nを使用しません <tt>mmap</tt> 機能を実装する必要はありません\nその機能。\n次のことも確認する必要があります。 <tt>usertests -q</tt> 働き続けています。\n</p></div>\n\n<p>\n完了すると、次のような出力が表示されるはずです。\n</p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">$ mmaptest\n<span class=\"hljs-built_in\">test</span> basic mmap\n<span class=\"hljs-built_in\">test</span> basic mmap: OK\n<span class=\"hljs-built_in\">test</span> mmap private\n<span class=\"hljs-built_in\">test</span> mmap private: OK\n<span class=\"hljs-built_in\">test</span> mmap read-only\n<span class=\"hljs-built_in\">test</span> mmap read-only: OK\n<span class=\"hljs-built_in\">test</span> mmap <span class=\"hljs-built_in\">read</span>/write\n<span class=\"hljs-built_in\">test</span> mmap <span class=\"hljs-built_in\">read</span>/write: OK\n<span class=\"hljs-built_in\">test</span> mmap dirty\n<span class=\"hljs-built_in\">test</span> mmap dirty: OK\n<span class=\"hljs-built_in\">test</span> not-mapped unmap\n<span class=\"hljs-built_in\">test</span> not-mapped unmap: OK\n<span class=\"hljs-built_in\">test</span> lazy access\n<span class=\"hljs-built_in\">test</span> lazy access: OK\n<span class=\"hljs-built_in\">test</span> mmap two files\n<span class=\"hljs-built_in\">test</span> mmap two files: OK\n<span class=\"hljs-built_in\">test</span> fork\n<span class=\"hljs-built_in\">test</span> fork: OK\n<span class=\"hljs-built_in\">test</span> munmap prevents access\nusertrap(): unexpected scause 0xd pid=7\n            sepc=0x924 stval=0xc0001000\nusertrap(): unexpected scause 0xd pid=8\n            sepc=0x9ac stval=0xc0000000\n<span class=\"hljs-built_in\">test</span> munmap prevents access: OK\n<span class=\"hljs-built_in\">test</span> writes to read-only mapped memory\nusertrap(): unexpected scause 0xf pid=9\n            sepc=0xaf4 stval=0xc0000000\n<span class=\"hljs-built_in\">test</span> writes to read-only mapped memory: OK\nmmaptest: all tests succeeded\n$ usertests -q\nusertests starting\n...\nALL TESTS PASSED\n$ </code></pre>\n\n<p>以下にいくつかのヒントを示します。\n\n  </p><ul>\n    <li>追加して始めます <tt>_mmaptest</tt> に <tt>UPROGS</tt>、\n そして <tt>mmap</tt> そして <tt>munmap</tt> システムコール、目的は、\n 得る <tt>user/mmaptest.c</tt> コンパイルします。とりあえず帰ってください\n からのエラー <tt>mmap</tt> そして <tt>munmap</tt>。 私たちが定義したのは\n      <tt>PROT_READ</tt> などのあなたのために <tt>kernel/fcntl.h</tt>。 \n走る <tt>mmaptest</tt>、最初の mmap 呼び出しで失敗します。\n      \n    </li><li>何を追跡するか <tt>mmap</tt> プロセスごとにマッピングされています。 \nVMA（仮想）に対応する構造を定義します。 \nメモリ領域）については、「アプリケーションの仮想メモリ」の講義で説明しています。 \nこれには、アドレス、長さ、権限、ファイルなどが記録されます。 \nによって作成された仮想メモリ範囲の場合 <tt>mmap</tt>。 xv6以降\n カーネルには可変サイズのメモリ アロケータがありません。 \n大丈夫です\n VMA の固定サイズ配列を宣言し、割り当てる\n 必要に応じてその配列から取得します。サイズは 16 で十分です。\n\n    </li><li>実装する <tt>mmap</tt>:\n プロセス内の未使用領域を見つける\n ファイルをマップするアドレス空間、\n VMA をプロセスに追加します。 \nマップされた領域のテーブル。 \nVMA には、へのポインタが含まれている必要があります。 \nある <tt>struct file</tt> マッピングされているファイルの場合。 <tt>mmap</tt> すべきです\n 構造が崩れないようファイルの参照カウントを増やします。 \nファイルを閉じると消えます (ヒント:\n 参照してください <tt>filedup</tt>）。 \n走る <tt>mmaptest</tt>：最初の <tt>mmap</tt> すべきです\n 成功しますが、mmap で作成されたメモリへの最初のアクセスは\n ページフォールトを引き起こして強制終了する <tt>mmaptest</tt>。\n\n    </li><li>mmap 化された領域でページフォールトを引き起こすコードを追加します。 \n物理メモリのページを割り当て、4096 バイトのメモリを読み取ります。 \n関連するファイルを\n そのページをユーザーのアドレス空間にマッピングします。 \nファイルを読み取る <tt>readi</tt>、\n これは、オフセット引数を受け取ります。 \nファイル (ただし、渡された i ノードをロック/ロック解除する必要があります)\n に <tt>readi</tt>）。 権限を正しく設定することを忘れないでください\n ページ上で。 走る <tt>mmaptest</tt>;に到達するはずです\n まず <tt>munmap</tt>。\n      \n    </li><li>実装する <tt>munmap</tt>: アドレス範囲の VMA を見つけて、\n 指定されたページのマップを解除します (ヒント: を使用します) <tt>uvmunmap</tt>）。 \nもし <tt>munmap</tt> のすべてのページを削除します\n 前の <tt>mmap</tt>、参照カウントをデクリメントする必要があります\n 対応する <tt>struct file</tt>。マップされていないページの場合\n 変更されており、ファイルはマップされています <tt>MAP_SHARED</tt>、\n ページをファイルに書き戻します。 \n見てください <tt>filewrite</tt> インスピレーションのために。\n\n    </li><li>理想的には、実装はライトバックのみです\n      <tt>MAP_SHARED</tt> プログラムが実際に変更したページ。 \n汚い部分 (<tt>D</tt>RISC-V PTE の ) は、\n ページが書き込まれました。ただし、 <tt>mmaptest</tt> チェックしない\n ダーティでないページは書き戻されないこと。そうすれば逃げることができる\n 何も見ずにページを書き戻す <tt>D</tt> ビット。\n\n    </li><li>変更 <tt>exit</tt> プロセスのマップされた領域を次のようにマップ解除します。 \nもし <tt>munmap</tt> 呼ばれていました。 \n走る <tt>mmaptest</tt>;すべてのテストを通過 <tt>test mmap two files</tt>\n      通過するはずですが、おそらく通過しないでしょう <tt>test fork</tt>。\n\n    </li><li>変更 <tt>fork</tt> 子どもが確実に\n 親と同じマップされた領域。 \nやめてください\n VMA の参照カウントをインクリメントするのを忘れた <tt>struct\n    file</tt>。 子のページフォルトハンドラでは、次のようにしても問題ありません。 \nページを共有する代わりに、新しい物理ページを割り当てます。 \n親。後者の方がクールですが、より多くのものが必要になります\n 実装作業。 走る <tt>mmaptest</tt>;それは通過するはずです\n すべてのテスト。\n          \n  </li></ul>\n  \n<p>走る <tt>usertests -q</tt> すべてが引き続き機能することを確認するためです。\n\n<!-- START SECTION: submit -->\n</p><p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"01\">ラボを送信する</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"01.1\">費やした時間</h3>\n\n<p>新しいファイルを作成し、 <tt>time.txt</tt>、単一の整数を入力すると、\nラボに費やした時間数。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> ファイル。\n\n</p><h3 id=\"answers\" data-section-number=\"01.2\">答え</h3>\n\n<p>このラボに質問がある場合は、回答を次の場所に記入してください <tt>answers-*.txt</tt>。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> これらのファイル。\n\n</p><h3 id=\"submit\" data-section-number=\"01.3\">送信する</h3>\n\n<p>課題の提出は Gradescope によって処理されます。\nMIT グレードスコープ アカウントが必要です。\nクラスに参加するためのエントリー コードについては、Piazza を参照してください。\n使用する <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">このリンク</a>\n参加にさらにサポートが必要な場合。\n\n</p><p>送信する準備ができたら、実行します <kbd>make zipball</kbd>、\n生成するもの <tt>lab.zip</tt>。\nこの zip ファイルを対応する Gradescope 課題にアップロードします。\n\n</p><p> 走れば <kbd>make zipball</kbd> コミットされていない変更があるか、\n追跡されていないファイルの場合は、次のような出力が表示されます。\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\n上記の行を調べて、ラボ ソリューションに必要なすべてのファイルを確認してください。\n追跡されます。つまり、で始まる行にはリストされません。 <tt>??</tt>。\nあなたが引き起こすことができます <tt>git</tt> を使用して作成した新しいファイルを追跡するには\n<kbd>git add {filename}</kbd>。\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>走ってください <kbd>make grade</kbd> コードがすべてのテストに合格することを確認します。 \nGradescope 自動採点機能は、同じ採点プログラムを使用して提出物に成績を割り当てます。</li>\n  <li>実行前に変更したソース コードをコミットする <kbd>make zipball</kbd>。</li>\n  <li>提出物のステータスを確認し、提出済みのファイルをダウンロードできます。 \nGradescope のコード。 Gradescope のラボ成績が最終的なラボ成績です。</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n  <h2 id=\"optional-challenges\" data-section-number=\"02\">オプションのチャレンジ</h2>\n  \n  <ul>\n    \n    <li>2 つのプロセスに mmap された同じファイルがある場合 (\n フォーク テストで)、物理ページを共有します。必要になります\n 物理ページの参照カウント。\n\n    </li><li>あなたのソリューションはおそらく各ページに新しい物理ページを割り当てます\n データがカーネル内にある場合でも、mmap 形式のファイルから読み取る\n バッファキャッシュ内のメモリ。 使用するように実装を変更します\n 新しいページを割り当てる代わりに、その物理メモリを使用します。 これには次のことが必要です\n ファイル ブロックはページと同じサイズにする (設定 <tt>BSIZE</tt> に\n 4096）。 mmap で作成されたブロックをバッファ キャッシュに固定する必要があります。 \n参照カウントについて心配する必要があります。 \n\nこの二重キャッシュを修正する利点の 1 つは、\n 作る <tt>read()</tt> そして <tt>write()</tt> と一致する\n        <tt>mmap</tt>。 つまり、いくつかの場合、 <tt>mmap</tt>編集されたファイルデータ\n メモリマッピングを通じて変更されます。 <tt>read</tt> すべきです\n それらの変更を返します。同様に、アプリケーションが\n 電話 <tt>write</tt>、書き込みはアクティブな任意の場所に表示されるはずです\n そのファイルのメモリマッピング。 面白いと思うかも知れません\n の論文を読む <a href=\"https://www.usenix.org/legacy/publications/library/proceedings/usenix2000/freenix/full_papers/silvers/silvers.pdf\" class=\"external-link\" rel=\"noreferrer\">の\n 統合バッファキャッシュ</a>。\n\n    </li><li>遅延のために実装間の冗長性を削除します\n mmap 形式のファイルの割り当てと実装。 (ヒント:\n 遅延割り当て領域の VMA を作成します。)\n\n    </li><li>変更 <tt>exec</tt> のさまざまなセクションに VMA を使用するには\n バイナリを使用して、オンデマンドでページングされる実行可能ファイルを取得します。これにより、\n プログラムの起動を高速化します。 <tt>exec</tt> 持たないだろう\n ファイル システムから任意のデータを読み取ります。\n\n    </li><li>ページアウトとページインを実装します。 \nカーネルは、次の場合にプロセスの一部をディスクに移動します。 \n物理メモリが少なくなっています。 次に、ページアウトされたメモリをページインします。 \nプロセスはそれを参照します。\n      \n  </li></ul>\n\n<!--  LocalWords:  mmap munmap macOS addr prot fd unmap mmaptest VMA\n -->\n<!--  LocalWords:  usertests reparent bigdir usertrap allocator VMAs\n -->\n<!--  LocalWords:  struct filedup readi inode uvmunmap unmapped PTE\n -->\n<!--  LocalWords:  filewrite VMA's BSIZE executables unmapping\n -->\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 2,
+    "h3": 3,
+    "paragraphs": 19,
+    "codeBlocks": 5,
+    "links": 2,
+    "lists": 3,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 2,
+    "h3": 3,
+    "paragraphs": 19,
+    "codeBlocks": 5,
+    "links": 2,
+    "lists": 3,
+    "tables": 0,
+    "figures": 0
+  }
+}

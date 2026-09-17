@@ -1,0 +1,91 @@
+{
+  "slug": "pgtbl",
+  "title": "ラボ: ページテーブル",
+  "source": "https://pdos.csail.mit.edu/6.S081/2026/labs/pgtbl.html",
+  "fetchedAt": "2026-09-17T03:57:17.689Z",
+  "outline": [
+    {
+      "depth": 2,
+      "id": "inspect-a-user-process-page-table",
+      "text": "ユーザープロセスページテーブルを検査する",
+      "number": "01"
+    },
+    {
+      "depth": 2,
+      "id": "walk-and-print-a-two-level-page-table",
+      "text": "2 レベルのページテーブルを歩いて印刷する",
+      "number": "02"
+    },
+    {
+      "depth": 2,
+      "id": "detect-which-pages-have-been-accessed",
+      "text": "どのページがアクセスされたかを検出する",
+      "number": "03"
+    },
+    {
+      "depth": 2,
+      "id": "speed-up-the-getpid-system-call",
+      "text": "スピードアップ getpid システムコール",
+      "number": "04"
+    },
+    {
+      "depth": 2,
+      "id": "use-superpages",
+      "text": "スーパーページを使用する",
+      "number": "05"
+    },
+    {
+      "depth": 2,
+      "id": "submit-the-lab",
+      "text": "ラボを送信する",
+      "number": "06"
+    },
+    {
+      "depth": 3,
+      "id": "time-spent",
+      "text": "費やした時間",
+      "number": "06.1"
+    },
+    {
+      "depth": 3,
+      "id": "answers",
+      "text": "答え",
+      "number": "06.2"
+    },
+    {
+      "depth": 3,
+      "id": "submit",
+      "text": "送信する",
+      "number": "06.3"
+    },
+    {
+      "depth": 2,
+      "id": "optional-challenge-exercises",
+      "text": "オプションのチャレンジ演習",
+      "number": "07"
+    }
+  ],
+  "html": "\n<h1 id=\"lab-page-tables\">ラボ: ページテーブル</h1>\n\n<p> このラボでは、ページ テーブルを調査し、次のように変更します。 \nOS の共通機能を実装します。\n\n</p><div class=\"lab-prereq\">\n<p>コーディングを開始する前に、次の章の第 3 章を読んでください。 \nの <a href=\"/book/chapter-3/\" class=\"book-link\">xv6 本</a>、および関連ファイル:\n\n  </p><ul>\n   <li> <tt>kernel/memlayout.h</tt>、メモリのレイアウトをキャプチャします。\n\t  \n    </li><li> <tt>kernel/vm.c</tt>、これにはほとんどの仮想メモリ (VM) コードが含まれています。\n\n    </li><li> <tt>kernel/kalloc.c</tt>、これには、割り当てと\n 物理メモリを解放します。\n  \n  </li></ul>\n\n  相談する <a href=\"https://drive.google.com/file/d/17GeetSnT5wW3xNuAHI95-SI1gPGd5sJ_/view?usp=drive_link\" class=\"external-link\" rel=\"noreferrer\">RISC-V 特権命令</a> RISC-V がページ テーブルを定義する方法について説明します。\n\n</div>\n\n<p>ラボを開始するには、pgtbl ブランチに切り替えます。\n  </p><pre data-language=\"bash\" tabindex=\"0\"><code class=\"hljs language-bash\">  $ git fetch\n  $ git checkout pgtbl\n  $ make clean\n  </code></pre>\n\n<h2 id=\"inspect-a-user-process-page-table\" data-section-number=\"01\">ユーザープロセスページテーブルを検査する </h2>\n\n<p>\nRISC-V ページ テーブルを理解するために、最初のタスクは説明することです。\nユーザープロセスのページテーブル。\n\n</p><p>走る <tt>make qemu</tt> そしてユーザープログラムを実行します <tt>pgtbltest</tt>。\nの <tt>print_pgtbl</tt> 関数はページテーブルのエントリを出力します。\n最初の 10 ページと最後の 10 ページについては、 <tt>pgtbltest</tt> プロセス\nを使用して <tt>pgpte</tt> このために xv6 に追加したシステムコール\n研究室出力は次のようになります。\n  </p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">va 0 pte 0x21FCF45B pa 0x87F3D000 perm 0x5B\nva 1000 pte 0x21FCE85B pa 0x87F3A000 perm 0x5B\n...\nva 0xFFFFD000 pte 0x0 pa 0x0 perm 0x0\nva 0xFFFFE000 pte 0x21FD80C7 pa 0x87F60000 perm 0xC7\nva 0xFFFFF000 pte 0x20001C4B pa 0x80007000 perm 0x4B\n </code></pre>\n\n<div class=\"lab-question\">\nすべてのページ テーブル エントリに対して、 <tt>print_pgtbl</tt> 出力、説明\n論理的に何が含まれているか、およびその許可ビットは何であるか。数字\n3.2と\nxv6 本の 3.4 が役立つかもしれませんが、図 3.4\n現在のプロセスとはわずかに異なるページセットが含まれる可能性があります\nここで検査されました。 xv6 は仮想ページを配置しないことに注意してください。\n物理メモリ内に連続的に保存されます。\n</div>\n\n<h2 id=\"walk-and-print-a-two-level-page-table\" data-section-number=\"02\">2 レベルのページテーブルを歩いて印刷する </h2>\n\n<p>\nRISC-V ページ テーブルを視覚化するのに役立ちます。\n将来のデバッグを支援するために、次のタスクは関数を作成することです。\nこれは 2 レベルのページ テーブルをたどって出力します。\n\n</p><div class=\"lab-required\">\n  システムコールを追加しました <tt>vmprint()</tt>を呼び出す\n  <tt>vmprint()</tt> で <tt>vm.c</tt>。かかります\nある <tt>pagetable_t</tt> 引数 (プロセスのページテーブル)\n システムコールを行った)、あなたの仕事はそのページテーブルを印刷することです\n以下に説明する形式で。\n</div>\n\n<p>\n走るとき <tt>pgtbltest</tt>、 <tt>vmprint_test()</tt>\nあなたに電話します <tt>vmprint()</tt>、次のように出力されるはずです。\n\n  </p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\">page table 0x0000000087f22000\n ..0x0000000000000000: pte 0x0000000021fc7801 pa 0x0000000087f1e000 \n .. ..0x0000000000000000: pte 0x0000000021fc7401 pa 0x0000000087f1d000 \n .. .. ..0x0000000000000000: pte 0x0000000021fc7c5b pa 0x0000000087f1f000 RXU\n .. .. ..0x0000000000001000: pte 0x0000000021fc705b pa 0x0000000087f1c000 RXU\n .. .. ..0x0000000000002000: pte 0x0000000021fc6cd7 pa 0x0000000087f1b000 RWU\n .. .. ..0x0000000000003000: pte 0x0000000021fc6807 pa 0x0000000087f1a000 RW\n .. .. ..0x0000000000004000: pte 0x0000000021fc64d7 pa 0x0000000087f19000 RWU\n ..0x0000003fc0000000: pte 0x0000000021fc8401 pa 0x0000000087f21000 \n .. ..0x0000003fffe00000: pte 0x0000000021fc8001 pa 0x0000000087f20000 \n .. .. ..0x0000003fffffe000: pte 0x0000000021fd00c7 pa 0x0000000087f40000 RW\n .. .. ..0x0000003ffffff000: pte 0x0000000020001c4b pa 0x0000000080007000 RX\n  </code></pre>\n\n最初の行には引数が表示されます <tt>vmprint</tt>。\nその後、PTE ごとに行が表示されます。\nツリーのさらに奥にあるページテーブルのページを参照します。\n各 PTE 行は、次の数だけインデントされます。 <tt>\" ..\"</tt> それはそれを示しています\n木の深さ。\n各 PTE 行には、その仮想アドレス、PTE ビット、\nPTE から抽出された物理アドレスとその許可ビット\n PTE: R(ead)、W(rite)、eXecute、および U(ser)。\n無効な PTE を印刷しないでください。 上の例では、\n最上位のページテーブル ページには、エントリ 0 と 255 のマッピングがあります。\nエントリ 0 のレベルダウンにはインデックス 0 のみがマップされており、最下位レベル\nそのインデックス 0 にはいくつかのエントリがマップされています。\n\n<p>\nコードによっては、上記とは異なる物理アドレスが出力される場合があります。\nエントリの数と仮想アドレスは同じである必要があります。\n</p>\n\n<p>いくつかのヒント:\n</p><ul>\n  <li>ファイル kernel/riscv.h の末尾にあるマクロを使用します。\n  </li><li>機能 <tt>freewalk</tt> インスピレーションを与えるかもしれない。\n  </li><li>使用する <tt>%p</tt> printk 呼び出しでは、例に示すように完全な 64 ビット 16 進数の PTE とアドレスを出力します。</li>\n</ul>\n\n<div class=\"lab-question\">\nのリーフ ページごとに、 <tt>vmprint</tt> 出力、それが何を論理的に説明するか\n含まれるもの、許可ビットで許可されるものと禁止されるもの、およびそれが\n以前の出力 <tt>print_pgtbl()</tt> 上記の練習をします。\n繰り返しますが、xv6 本の図 3.4 が役に立つかもしれません。\n</div>\n\n<h2 id=\"detect-which-pages-have-been-accessed\" data-section-number=\"03\">どのページがアクセスされたかを検出する </h2>\n\n<p>\n一部のアプリケーション (ガベージ コレクターなど) は恩恵を受ける可能性があります\nどのページがアクセス (読み取りまたは書き込み) されたかに関する情報から。この中で\nラボの一部として、これを検出して報告する新しい機能を xv6 に追加します。\nRISC-V ページ テーブル内のアクセス ビットを検査することにより、情報をユーザー空間に送信します。\nRISC-V ハードウェア ページ ウォーカーは、解決されるたびに PTE 内のこれらのビットをマークします。\nTLBミス。\n\n </p><div class=\"required\">\nあなたの仕事は実装することです <tt>pgaccess()</tt>、それを報告するシステムコール\nページにアクセスされました。システムコールは 3 つの引数を取ります。まず、必要なのは\nチェックする最初のユーザー ページの開始仮想アドレス。第二に、それは\n確認するページ数。最後に、ユーザーのアドレスをバッファーに取り込んで保存します。\n結果をビットマスク (ページごとに 1 ビットを使用するデータ構造) に変換します。\n最初のページは最下位ビットに対応します)。あなたの\n実装では無効な引数を処理する必要があります <tt>pgaccess()</tt>;\nたとえば、 <tt>pgaccess</tt> マップされていないページのチェックでは -1 エラーを返す必要があります\nまたは無効な場合\nバッファアドレス。\n全額お受けいたします\nラボのこの部分の功績は次のとおりです。 <tt>pgaccess</tt> テストケースが合格した場合\n走っている <tt>pgtbltest</tt>。\n</div>\n\n<p>いくつかのヒント:\n  </p><ul>\n  <li>読む <tt>pgaccess_test()</tt> で <tt>user/pgtbltest.c</tt> に\n どうやって見てください <tt>pgaccess</tt> が使用されます。\n  </li><li>実装から始める <tt>sys_pgaccess()</tt> で <tt>kernel/sysproc.c</tt>。\n  </li><li>次を使用して引数を解析する必要があります <tt>argaddr()</tt> そして <tt>argint()</tt>。\n  </li><li>出力ビットマスクについては、カーネルに一時バッファを保存し、それをユーザーにコピーする方が簡単です ( <tt>copyout()</tt>) 適切なビットを入力した後。\n  </li><li>スキャンできるページ数に上限を設定しても大丈夫です。\n  </li><li><tt>walk()</tt> で <tt>kernel/vm.c</tt> 適切な PTE を見つけるのに非常に役立ちます。\n  </li><li>定義する必要があります <tt>PTE_A</tt>、アクセスビット、\n で <tt>kernel/riscv.h</tt>。相談する <a href=\"https://drive.google.com/file/d/17GeetSnT5wW3xNuAHI95-SI1gPGd5sJ_/view?usp=drive_link\" class=\"external-link\" rel=\"noreferrer\">RISC-V 特権命令</a> その価値を判断するために\n  </li><li>必ずクリアしてください <tt>PTE_A</tt> 設定されているか確認してから。そうしないと、前回以降にページにアクセスしたかどうかを判断できなくなります。 <tt>pgaccess()</tt> が呼び出されました (つまり、ビットは永久に設定されます)。\n  </li><li><tt>vmprint()</tt> ページテーブルをデバッグするのに便利かもしれません。\n</li></ul>\n\n<h2 id=\"speed-up-the-getpid-system-call\" data-section-number=\"04\">スピードアップ <tt>getpid</tt> システムコール </h2>\n\n<p>\n一部のオペレーティング システム (Linux など) は、共有することで特定のシステム コールを高速化します。\nユーザー空間とカーネルの間の読み取り専用領域内のデータ。これにより、\nこれらのシステムコールを実行するときはカーネルクロスが必要です。 学習を助けるために\nページテーブルにマッピングを挿入する方法。あなたのタスクはこれを実装することです。\nの最適化 <tt>getpid()</tt> xv6 のシステムコール。\n\n</p><div class=\"lab-required\">\n各プロセスの作成時に、USYSCALL で 1 つの読み取り専用ページをマップします (\n仮想アドレスの定義\nで <tt>memlayout.h</tt>）。このページの先頭に、 <tt>struct\nusyscall</tt> (また、 <tt>memlayout.h</tt>)、保存するために初期化します。\n現在のプロセスの PID。このラボでは、 <tt>ugetpid()</tt> されています\nユーザー空間側で提供され、USYSCALL マッピングが自動的に使用されます。\n次の場合、ラボのこの部分のクレジットを全額受け取ります。 <tt>ugetpid</tt> テスト\n実行中にケースが通過する <tt>pgtbltest</tt>。\n</div>\n\n<p>いくつかのヒント:\n</p><ul>\n  <li>ユーザースペースにページの読み取りのみを許可する許可ビットを選択します。\n  </li><li>新しいページのライフサイクル全体にわたって行う必要があることがいくつかあります。 \nインスピレーションを得るために、次のトラップフレームの処理を理解してください。 <tt>kernel/proc.c</tt>。\n</li></ul>\n \n<div class=\"lab-question\">\nこの共有ページを使用すると、他のどの xv6 システム コールを高速化できますか?\nその方法を説明してください。\n</div>\n\n<h2 id=\"use-superpages\" data-section-number=\"05\">スーパーページを使用する </h2>\n  \nRISC-V ページング ハードウェアは、2 メガバイトのページと、\n通常の 4096 バイトのページ。大きなページの一般的な考え方は次のように呼ばれます。\nスーパーページ、および (RISC-V は複数のサイズをサポートしているため) 2M ページ\nメガページと呼ばれます。オペレーティング システムは、次の方法でスーパーページを作成します。\nレベル 1 PTE の PTE_V ビットと PTE_R ビットを設定し、\n2メガバイト領域の先頭を指す物理ページ番号。\n物理的なメモリ。この物理アドレスは 2 メガバイトでアラインされている必要があります\n(つまり、2 メガバイトの倍数)。これについては、\n<a href=\"https://drive.google.com/file/d/17GeetSnT5wW3xNuAHI95-SI1gPGd5sJ_/view?usp=drive_link\" class=\"external-link\" rel=\"noreferrer\">RISC-V特権アーキテクチャマニュアル</a>\nメガページとスーパーページを検索してください。\n\nスーパーページを使用すると、システムが使用する物理メモリの量が減少します。\nページ テーブルを作成し、TLB キャッシュでのミスを減らすことができます。一部の人にとっては\nこれによりパフォーマンスが大幅に向上します。\n\n<div class=\"lab-required\">\n  あなたの仕事は、スーパーページを使用するように xv6 カーネルを変更することです。 \nカーネルページテーブル。 カーネルが使用するのは、 <tt>kvmmake()</tt> を構築する\n 多くのマッピングを挿入してページテーブル自体を作成する\n を使用して <tt>kvmmap</tt>。マッピングに 1 つ以上のエリアが含まれる場合、\n 2 メガバイトでアライメントされており、サイズが少なくとも 2 メガバイトである\n (多くの最下位レベルの代わりに、単一のスーパーページを使用する必要があります)\n ページ）。 次の場合、ラボのこの部分のクレジットを全額受け取ります。\n  <tt>ksuper_test</tt> 走っているとき <tt>pgtbltest</tt> 通ります。\n</div>\n\n<p>いくつかのヒント:\n</p><ul>\n  <li>のコピーを作成します <tt>mappages</tt> それだけ <tt>kvmmap</tt> あなたのコピーが <tt>mappages</tt> カーネル マッピングにスーパーページを使用することで、カーネルに特化できます (ただし、ユーザー プログラムには特化できません)。 \n  </li><li>変更してください <tt>vmprint()</tt> どの PTE がスーパーページであるかを示す\n</li></ul>\n\n<div class=\"lab-question\">\n  あなたのソリューションはスーパーページ PTE をいくつ使用しますか? これらのスーパーページ PTE は最下位ページを何ページ保存しますか?\n</div>\n\n<p>実際のオペレーティング システムは、ページのコレクションを動的にプロモートします。\nカーネルおよびユーザープロセスのスーパーページ。 次の参考文献は、なぜそれが良いアイデアであるかを説明しています\nそして、より本格的な設計では何が難しいかというと、 <a href=\"https://www.usenix.org/conference/osdi-02/practical-transparent-operating-system-support-superpages\" class=\"external-link\" rel=\"noreferrer\">フアン・ナバロ、シタラム・アイヤー、\nピーター・ドルシェルとアラン・コックス。実用的で透過的なオペレーティング システム\nスーパーページのサポート。シゴプス・オペラ。 システム。改訂版、36(SI):89-104、\n2002 年 12 月。</a>  このリファレンスは要約しています\n スーパーページの実装\n さまざまな OS の場合:\n  <a href=\"https://www.usenix.org/conference/atc20/presentation/zhu-weixi\" class=\"external-link\" rel=\"noreferrer\">あ\n スーパーページ管理メカニズムの包括的な分析\n と政策</a>。\n  \n<!-- START SECTION: submit -->\n</p><p><a name=\"submit\"></a>\n</p><h2 id=\"submit-the-lab\" data-section-number=\"06\">ラボを送信する</h2>\n\n<h3 id=\"time-spent\" data-section-number=\"06.1\">費やした時間</h3>\n\n<p>新しいファイルを作成し、 <tt>time.txt</tt>、単一の整数を入力すると、\nラボに費やした時間数。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> ファイル。\n\n</p><h3 id=\"answers\" data-section-number=\"06.2\">答え</h3>\n\n<p>このラボに質問がある場合は、回答を次の場所に記入してください <tt>answers-*.txt</tt>。\n<kbd>git add</kbd> そして <kbd>git commit</kbd> これらのファイル。\n\n</p><h3 id=\"submit\" data-section-number=\"06.3\">送信する</h3>\n\n<p>課題の提出は Gradescope によって処理されます。\nMIT グレードスコープ アカウントが必要です。\nクラスに参加するためのエントリー コードについては、Piazza を参照してください。\n使用する <a href=\"https://help.gradescope.com/article/gi7gm49peg-student-add-course#joining_a_course_using_a_course_code\" class=\"external-link\" rel=\"noreferrer\">このリンク</a>\n参加にさらにサポートが必要な場合。\n\n</p><p>送信する準備ができたら、実行します <kbd>make zipball</kbd>、\n生成するもの <tt>lab.zip</tt>。\nこの zip ファイルを対応する Gradescope 課題にアップロードします。\n\n</p><p> 走れば <kbd>make zipball</kbd> コミットされていない変更があるか、\n追跡されていないファイルの場合は、次のような出力が表示されます。\n</p><pre data-language=\"plaintext\" tabindex=\"0\"><code class=\"hljs language-plaintext\"> M hello.c\n?? bar.c\n?? foo.pyc\nUntracked files will not be handed in.  Continue? [y/N]</code></pre>\n上記の行を調べて、ラボ ソリューションに必要なすべてのファイルを確認してください。\n追跡されます。つまり、で始まる行にはリストされません。 <tt>??</tt>。\nあなたが引き起こすことができます <tt>git</tt> を使用して作成した新しいファイルを追跡するには\n<kbd>git add {filename}</kbd>。\n<p></p>\n\n<p>\n</p><div class=\"warning\">\n<ul>\n  <li>走ってください <kbd>make grade</kbd> コードがすべてのテストに合格することを確認します。 \nGradescope 自動採点機能は、同じ採点プログラムを使用して提出物に成績を割り当てます。</li>\n  <li>実行前に変更したソース コードをコミットする <kbd>make zipball</kbd>。</li>\n  <li>提出物のステータスを確認し、提出済みのファイルをダウンロードできます。 \nGradescope のコード。 Gradescope のラボ成績が最終的なラボ成績です。</li>\n</ul>\n</div>\n\n<!-- END SECTION: submit -->\n\n<h2 id=\"optional-challenge-exercises\" data-section-number=\"07\">オプションのチャレンジ演習</h2>\n\n<ul>\n\n  <li>上記で参照した論文のいくつかのアイデアを実装して、\n スーパーページのデザインをよりリアルに。\n\n  </li><li>ユーザープロセスの最初のページのマップを解除して、\n null ポインタがあるとエラーが発生します。 そうする必要があります\n 変化する <tt>user.ld</tt> ユーザーテキストセグメントを開始するには、\n たとえば、0 ではなく 4096。\n\n  </li><li>ダーティ ページ (変更されたページ) を報告するシステム コールを追加します。 <tt>PTE_D</tt>。\n\n</li></ul>\n",
+  "sourceStats": {
+    "h1": 1,
+    "h2": 7,
+    "h3": 3,
+    "paragraphs": 23,
+    "codeBlocks": 4,
+    "links": 7,
+    "lists": 7,
+    "tables": 0,
+    "figures": 0
+  },
+  "renderedStats": {
+    "h1": 1,
+    "h2": 7,
+    "h3": 3,
+    "paragraphs": 23,
+    "codeBlocks": 4,
+    "links": 7,
+    "lists": 7,
+    "tables": 0,
+    "figures": 0
+  }
+}

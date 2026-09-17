@@ -7,80 +7,67 @@
 #include "syscall.h"
 #include "defs.h"
 
-// Fetch the uint64 at addr from the current process.
-int
-fetchaddr(uint64 addr, uint64 *ip)
+// 現在のプロセスのaddrからuint64を取得する。
+int fetchaddr(uint64 addr, uint64 *ip)
 {
-  struct proc *p = myproc();
-  if (addr >= p->sz ||
-      addr + sizeof(uint64) > p->sz) // both tests needed, in case of overflow
+    struct proc *p = myproc();
+    if (addr >= p->sz ||
+        addr + sizeof(uint64) > p->sz) // オーバーフローに備えて両方の検査が必要
+        return -1;
+    if (copyin(p->pagetable, p->sz, (char *)ip, addr, sizeof(*ip)) != 0)
+        return -1;
+    return 0;
+}
+
+// 現在のプロセスのaddrからNUL終端文字列を取得する。
+// 文字列長（NULを含まない）、またはエラー時に-1を返す。
+int fetchstr(uint64 addr, char *buf, int max)
+{
+    struct proc *p = myproc();
+    if (copyinstr(p->pagetable, p->sz, buf, addr, max) < 0)
+        return -1;
+    return strlen(buf);
+}
+
+static uint64 argraw(int n)
+{
+    struct proc *p = myproc();
+    switch (n) {
+    case 0:
+        return p->trapframe->a0;
+    case 1:
+        return p->trapframe->a1;
+    case 2:
+        return p->trapframe->a2;
+    case 3:
+        return p->trapframe->a3;
+    case 4:
+        return p->trapframe->a4;
+    case 5:
+        return p->trapframe->a5;
+    }
+    panic("argraw");
     return -1;
-  if (copyin(p->pagetable, p->sz, (char *)ip, addr, sizeof(*ip)) != 0)
-    return -1;
-  return 0;
 }
 
-// Fetch the nul-terminated string at addr from the current process.
-// Returns length of string, not including nul, or -1 for error.
-int
-fetchstr(uint64 addr, char *buf, int max)
+// n番目の32ビットシステムコール引数を取得する。
+void argint(int n, int *ip) { *ip = argraw(n); }
+
+// 引数をポインタとして取得する。
+// copyin/copyoutが検査するため、正当性は確認しない。
+void argaddr(int n, uint64 *ip) { *ip = argraw(n); }
+
+// n番目のワードサイズのシステムコール引数をNUL終端文字列として取得する。
+// 最大maxバイトをbufへ複写する。
+// 成功時は文字列長（NULを含まない）、エラー時は-1を返す。
+int argstr(int n, char *buf, int max)
 {
-  struct proc *p = myproc();
-  if (copyinstr(p->pagetable, p->sz, buf, addr, max) < 0)
-    return -1;
-  return strlen(buf);
+    uint64 addr;
+    argaddr(n, &addr);
+    return fetchstr(addr, buf, max);
 }
 
-static uint64
-argraw(int n)
-{
-  struct proc *p = myproc();
-  switch (n) {
-  case 0:
-    return p->trapframe->a0;
-  case 1:
-    return p->trapframe->a1;
-  case 2:
-    return p->trapframe->a2;
-  case 3:
-    return p->trapframe->a3;
-  case 4:
-    return p->trapframe->a4;
-  case 5:
-    return p->trapframe->a5;
-  }
-  panic("argraw");
-  return -1;
-}
-
-// Fetch the nth 32-bit system call argument.
-void
-argint(int n, int *ip)
-{
-  *ip = argraw(n);
-}
-
-// Retrieve an argument as a pointer.
-// Doesn't check for legality, since
-// copyin/copyout will do that.
-void
-argaddr(int n, uint64 *ip)
-{
-  *ip = argraw(n);
-}
-
-// Fetch the nth word-sized system call argument as a null-terminated string.
-// Copies into buf, at most max.
-// Returns string length if OK (not including nul), -1 if error.
-int
-argstr(int n, char *buf, int max)
-{
-  uint64 addr;
-  argaddr(n, &addr);
-  return fetchstr(addr, buf, max);
-}
-
-// Prototypes for the functions that handle system calls.
+// システムコールを処理する関数のプロトタイプ。
 extern uint64 sys_fork(void);
 extern uint64 sys_exit(void);
 extern uint64 sys_wait(void);
@@ -104,10 +91,10 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_sync(void);
 
-// An array mapping syscall numbers from syscall.h
-// to the function that handles the system call.
+// syscall.hのシステムコール番号から、
+// そのシステムコールを処理する関数への対応配列。
 static uint64 (*syscalls[])(void) = {
-  // clang-format off
+    // clang-format off
   [SYS_fork]    = sys_fork,
   [SYS_exit]    = sys_exit,
   [SYS_wait]    = sys_wait,
@@ -130,22 +117,21 @@ static uint64 (*syscalls[])(void) = {
   [SYS_mkdir]   = sys_mkdir,
   [SYS_close]   = sys_close,
   [SYS_sync]    = sys_sync,
-  // clang-format on
+    // clang-format on
 };
 
-void
-syscall(void)
+void syscall(void)
 {
-  int num;
-  struct proc *p = myproc();
+    int num;
+    struct proc *p = myproc();
 
-  num = p->trapframe->a7;
-  if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // Use num to lookup the system call function for num, call it,
-    // and store its return value in p->trapframe->a0
-    p->trapframe->a0 = syscalls[num]();
-  } else {
-    printk("%d %s: unknown sys call %d\n", p->pid, p->name, num);
-    p->trapframe->a0 = -1;
-  }
+    num = p->trapframe->a7;
+    if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+        // numを使ってnumのシステムコール処理関数を検索・呼び出し、
+        // 戻り値をp->trapframe->a0に保存する。
+        p->trapframe->a0 = syscalls[num]();
+    } else {
+        printk("%d %s: unknown sys call %d\n", p->pid, p->name, num);
+        p->trapframe->a0 = -1;
+    }
 }
