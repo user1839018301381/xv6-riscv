@@ -31,9 +31,9 @@ struct file*    filealloc(void);
 void            fileclose(struct file*);
 struct file*    filedup(struct file*);
 void            fileinit(void);
-int             fileread(struct file*, uint64, int n);
+int             fileread(struct file *file, uint64 destination_address, int byte_count);
 int             filestat(struct file*, uint64 addr);
-int             filewrite(struct file*, uint64, int n);
+int             filewrite(struct file *file, uint64 source_address, int byte_count);
 
 // fs.c（ファイルシステム）
 void            fsinit(int);

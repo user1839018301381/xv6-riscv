@@ -64,29 +64,29 @@ uint64 sys_dup(void)
 
 uint64 sys_read(void)
 {
-    struct file *f;
-    int n;
-    uint64 p;
+    struct file *file;
+    int byte_count;
+    uint64 destination_address;
 
-    argaddr(1, &p);
-    argint(2, &n);
-    if (argfd(0, 0, &f) < 0)
+    argaddr(1, &destination_address);
+    argint(2, &byte_count);
+    if (argfd(0, 0, &file) < 0)
         return -1;
-    return fileread(f, p, n);
+    return fileread(file, destination_address, byte_count);
 }
 
 uint64 sys_write(void)
 {
-    struct file *f;
-    int n;
-    uint64 p;
+    struct file *file;
+    int byte_count;
+    uint64 source_address;
 
-    argaddr(1, &p);
-    argint(2, &n);
-    if (argfd(0, 0, &f) < 0)
+    argaddr(1, &source_address);
+    argint(2, &byte_count);
+    if (argfd(0, 0, &file) < 0)
         return -1;
 
-    return filewrite(f, p, n);
+    return filewrite(file, source_address, byte_count);
 }
 
 uint64 sys_close(void)

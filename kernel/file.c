@@ -93,76 +93,79 @@ int filestat(struct file *f, uint64 addr)
     return -1;
 }
 
-// ファイルfから読み出す。
-// addrはユーザ仮想アドレス。
-int fileread(struct file *f, uint64 addr, int n)
+// ファイルから読み出す。
+// destination_addressは読み出し先のユーザ仮想アドレス。
+int fileread(struct file *file, uint64 destination_address, int byte_count)
 {
-    int r = 0;
+    int bytes_read = 0;
 
-    if (f->readable == 0 || n < 0)
+    if (file->readable == 0 || byte_count < 0)
         return -1;
 
-    if (f->type == FD_PIPE) {
-        r = piperead(f->pipe, addr, n);
-    } else if (f->type == FD_DEVICE) {
-        if (f->major < 0 || f->major >= NDEV || !devsw[f->major].read)
+    if (file->type == FD_PIPE) {
+        bytes_read = piperead(file->pipe, destination_address, byte_count);
+    } else if (file->type == FD_DEVICE) {
+        if (file->major < 0 || file->major >= NDEV || !devsw[file->major].read)
             return -1;
-        r = devsw[f->major].read(1, addr, n);
-    } else if (f->type == FD_INODE) {
-        ilock(f->ip);
-        if ((r = readi(f->ip, 1, addr, f->off, n)) > 0)
-            f->off += r;
-        iunlock(f->ip);
+        bytes_read = devsw[file->major].read(1, destination_address, byte_count);
+    } else if (file->type == FD_INODE) {
+        ilock(file->ip);
+        if ((bytes_read = readi(file->ip, 1, destination_address, file->off, byte_count)) > 0)
+            file->off += bytes_read;
+        iunlock(file->ip);
     } else {
         panic("fileread");
     }
 
-    return r;
+    return bytes_read;
 }
 
-// ファイルfへ書き込む。
-// addrはユーザ仮想アドレス。
-int filewrite(struct file *f, uint64 addr, int n)
+// ファイルへ書き込む。
+// source_addressは書き込み元のユーザ仮想アドレス。
+int filewrite(struct file *file, uint64 source_address, int byte_count)
 {
-    int r, ret = 0;
+    int bytes_written = 0;
 
-    if (f->writable == 0 || n < 0)
+    if (file->writable == 0 || byte_count < 0)
         return -1;
 
-    if (f->type == FD_PIPE) {
-        ret = pipewrite(f->pipe, addr, n);
-    } else if (f->type == FD_DEVICE) {
-        if (f->major < 0 || f->major >= NDEV || !devsw[f->major].write)
+    if (file->type == FD_PIPE) {
+        bytes_written = pipewrite(file->pipe, source_address, byte_count);
+    } else if (file->type == FD_DEVICE) {
+        if (file->major < 0 || file->major >= NDEV || !devsw[file->major].write)
             return -1;
-        ret = devsw[f->major].write(1, addr, n);
-    } else if (f->type == FD_INODE) {
+        bytes_written = devsw[file->major].write(1, source_address, byte_count);
+    } else if (file->type == FD_INODE) {
         // ログの最大トランザクションサイズを超えないよう数ブロックずつ書く。
         // iノード・間接ブロック・確保ブロックに加え、
         // 非整列書き込み用の余裕2ブロック分を考慮する。
-        int max = ((MAXOPBLOCKS - 1 - 1 - 2) / 2) * BSIZE;
-        int i = 0;
-        while (i < n) {
-            int n1 = n - i;
-            if (n1 > max)
-                n1 = max;
+        int max_bytes_per_transaction = ((MAXOPBLOCKS - 1 - 1 - 2) / 2) * BSIZE;
+        int total_bytes_written = 0;
+        while (total_bytes_written < byte_count) {
+            int transaction_byte_count = byte_count - total_bytes_written;
+            if (transaction_byte_count > max_bytes_per_transaction)
+                transaction_byte_count = max_bytes_per_transaction;
 
             begin_op();
-            ilock(f->ip);
-            if ((r = writei(f->ip, 1, addr + i, f->off, n1)) > 0)
-                f->off += r;
-            iunlock(f->ip);
+            ilock(file->ip);
+            int transaction_bytes_written =
+                writei(file->ip, 1, source_address + total_bytes_written,
+                       file->off, transaction_byte_count);
+            if (transaction_bytes_written > 0)
+                file->off += transaction_bytes_written;
+            iunlock(file->ip);
             end_op();
 
-            if (r != n1) {
+            if (transaction_bytes_written != transaction_byte_count) {
                 // writeiによるエラー。
                 break;
             }
-            i += r;
+            total_bytes_written += transaction_bytes_written;
         }
-        ret = (i == n ? n : -1);
+        bytes_written = (total_bytes_written == byte_count ? byte_count : -1);
     } else {
         panic("filewrite");
     }
 
-    return ret;
+    return bytes_written;
 }
