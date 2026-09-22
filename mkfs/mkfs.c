@@ -25,55 +25,55 @@
 // ディスク配置:
 // [ ブートブロック | sbブロック | ログ | inodeブロック | 空きビットマップ | データブロック ]
 
-int nbitmap = FSSIZE / BPB + 1;
-int ninodeblocks = NINODES / IPB + 1;
-int nlog = LOGBLOCKS + 1; // ヘッダの後にLOGBLOCKS個のデータブロックが続く。
-int nmeta;   // メタブロック数（ブート、sb、nlog、inode、ビットマップ）
-int nblocks; // データブロック数
+int bitmap_block_count = FSSIZE / BPB + 1;
+int inode_block_count = NINODES / IPB + 1;
+int log_block_count = LOGBLOCKS + 1;
+int metadata_block_count;
+int data_block_count;
 
-int fsfd;
-struct superblock sb;
-char zeroes[BSIZE];
-uint freeinode = 1;
-uint freeblock;
+int file_system_fd;
+struct superblock file_system_superblock;
+char empty_block[BSIZE];
+uint next_free_inode_number = 1;
+uint next_free_block_number;
 
-void balloc(int);
-void wsect(uint, void *);
-void winode(uint, struct dinode *);
-void rinode(uint inum, struct dinode *ip);
-void rsect(uint sec, void *buf);
-uint ialloc(ushort type);
-void iappend(uint inum, void *p, int n);
-void die(const char *);
+void write_allocation_bitmap(int allocated_block_count);
+void write_sector(uint sector_number, void *buffer);
+void write_inode(uint inode_number, struct dinode *disk_inode);
+void read_inode(uint inode_number, struct dinode *disk_inode_out);
+void read_sector(uint sector_number, void *buffer);
+uint allocate_inode(ushort type);
+void append_inode_data(uint inode_number, void *source, int byte_count);
+void die(const char *message);
 
 // RISC-Vのバイト順に変換する
-ushort xshort(ushort x)
+ushort encode_uint16(ushort value)
 {
-    ushort y;
-    uchar *a = (uchar *)&y;
-    a[0] = x;
-    a[1] = x >> 8;
-    return y;
+    ushort encoded_value;
+    uchar *bytes = (uchar *)&encoded_value;
+    bytes[0] = value;
+    bytes[1] = value >> 8;
+    return encoded_value;
 }
 
-uint xint(uint x)
+uint encode_uint32(uint value)
 {
-    uint y;
-    uchar *a = (uchar *)&y;
-    a[0] = x;
-    a[1] = x >> 8;
-    a[2] = x >> 16;
-    a[3] = x >> 24;
-    return y;
+    uint encoded_value;
+    uchar *bytes = (uchar *)&encoded_value;
+    bytes[0] = value;
+    bytes[1] = value >> 8;
+    bytes[2] = value >> 16;
+    bytes[3] = value >> 24;
+    return encoded_value;
 }
 
 int main(int argc, char *argv[])
 {
-    int i, cc, fd;
-    uint rootino, inum, off;
-    struct dirent de;
-    char buf[BSIZE];
-    struct dinode din;
+    int i, bytes_read, fd;
+    uint root_inode_number, inode_number, offset;
+    struct dirent directory_entry;
+    char block_buffer[BSIZE];
+    struct dinode disk_inode;
 
     static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
 
@@ -85,48 +85,55 @@ int main(int argc, char *argv[])
     assert((BSIZE % sizeof(struct dinode)) == 0);
     assert((BSIZE % sizeof(struct dirent)) == 0);
 
-    fsfd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0666);
-    if (fsfd < 0)
+    file_system_fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0666);
+    if (file_system_fd < 0)
         die(argv[1]);
 
     // FSの1ブロック = ディスクの1セクタ
-    nmeta = 2 + nlog + ninodeblocks + nbitmap;
-    nblocks = FSSIZE - nmeta;
+    metadata_block_count =
+        2 + log_block_count + inode_block_count + bitmap_block_count;
+    data_block_count = FSSIZE - metadata_block_count;
 
-    sb.magic = FSMAGIC;
-    sb.size = xint(FSSIZE);
-    sb.nblocks = xint(nblocks);
-    sb.ninodes = xint(NINODES);
-    sb.nlog = xint(nlog);
-    sb.logstart = xint(2);
-    sb.inodestart = xint(2 + nlog);
-    sb.bmapstart = xint(2 + nlog + ninodeblocks);
+    file_system_superblock.magic = FSMAGIC;
+    file_system_superblock.total_block_count = encode_uint32(FSSIZE);
+    file_system_superblock.data_block_count = encode_uint32(data_block_count);
+    file_system_superblock.inode_count = encode_uint32(NINODES);
+    file_system_superblock.log_block_count = encode_uint32(log_block_count);
+    file_system_superblock.log_start_block = encode_uint32(2);
+    file_system_superblock.inode_start_block =
+        encode_uint32(2 + log_block_count);
+    file_system_superblock.bitmap_start_block =
+        encode_uint32(2 + log_block_count + inode_block_count);
 
     printf(
         "nmeta %d (boot, super, log blocks %u, inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
-        nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
+        metadata_block_count, log_block_count, inode_block_count,
+        bitmap_block_count, data_block_count, FSSIZE);
 
-    freeblock = nmeta; // 割り当て可能な最初の空きブロック
+    next_free_block_number = metadata_block_count;
 
     for (i = 0; i < FSSIZE; i++)
-        wsect(i, zeroes);
+        write_sector(i, empty_block);
 
-    memset(buf, 0, sizeof(buf));
-    memmove(buf, &sb, sizeof(sb));
-    wsect(1, buf);
+    memset(block_buffer, 0, sizeof(block_buffer));
+    memmove(block_buffer, &file_system_superblock,
+            sizeof(file_system_superblock));
+    write_sector(1, block_buffer);
 
-    rootino = ialloc(T_DIR);
-    assert(rootino == ROOTINO);
+    root_inode_number = allocate_inode(T_DIR);
+    assert(root_inode_number == ROOTINO);
 
-    bzero(&de, sizeof(de));
-    de.inum = xshort(rootino);
-    strcpy(de.name, ".");
-    iappend(rootino, &de, sizeof(de));
+    bzero(&directory_entry, sizeof(directory_entry));
+    directory_entry.inode_number = encode_uint16(root_inode_number);
+    strcpy(directory_entry.name, ".");
+    append_inode_data(root_inode_number, &directory_entry,
+                      sizeof(directory_entry));
 
-    bzero(&de, sizeof(de));
-    de.inum = xshort(rootino);
-    strcpy(de.name, "..");
-    iappend(rootino, &de, sizeof(de));
+    bzero(&directory_entry, sizeof(directory_entry));
+    directory_entry.inode_number = encode_uint16(root_inode_number);
+    strcpy(directory_entry.name, "..");
+    append_inode_data(root_inode_number, &directory_entry,
+                      sizeof(directory_entry));
 
     for (i = 2; i < argc; i++) {
         // "user/"を取り除く
@@ -149,147 +156,164 @@ int main(int argc, char *argv[])
 
         assert(strlen(shortname) <= DIRSIZ);
 
-        inum = ialloc(T_FILE);
+        inode_number = allocate_inode(T_FILE);
 
-        bzero(&de, sizeof(de));
-        de.inum = xshort(inum);
-        strncpy(de.name, shortname, DIRSIZ);
-        iappend(rootino, &de, sizeof(de));
+        bzero(&directory_entry, sizeof(directory_entry));
+        directory_entry.inode_number = encode_uint16(inode_number);
+        strncpy(directory_entry.name, shortname, DIRSIZ);
+        append_inode_data(root_inode_number, &directory_entry,
+                          sizeof(directory_entry));
 
-        while ((cc = read(fd, buf, sizeof(buf))) > 0)
-            iappend(inum, buf, cc);
+        while ((bytes_read = read(fd, block_buffer,
+                                  sizeof(block_buffer))) > 0)
+            append_inode_data(inode_number, block_buffer, bytes_read);
 
         close(fd);
     }
 
     // ルートinodeディレクトリのサイズを修正する
-    rinode(rootino, &din);
-    off = xint(din.size);
-    off = ((off / BSIZE) + 1) * BSIZE;
-    din.size = xint(off);
-    winode(rootino, &din);
+    read_inode(root_inode_number, &disk_inode);
+    offset = encode_uint32(disk_inode.size);
+    offset = ((offset / BSIZE) + 1) * BSIZE;
+    disk_inode.size = encode_uint32(offset);
+    write_inode(root_inode_number, &disk_inode);
 
-    balloc(freeblock);
+    write_allocation_bitmap(next_free_block_number);
 
     exit(0);
 }
 
-void wsect(uint sec, void *buf)
+void write_sector(uint sector_number, void *buffer)
 {
-    if (lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE)
+    if (lseek(file_system_fd, sector_number * BSIZE, 0) !=
+        sector_number * BSIZE)
         die("lseek");
-    if (write(fsfd, buf, BSIZE) != BSIZE)
+    if (write(file_system_fd, buffer, BSIZE) != BSIZE)
         die("write");
 }
 
-void winode(uint inum, struct dinode *ip)
+void write_inode(uint inode_number, struct dinode *disk_inode)
 {
-    char buf[BSIZE];
-    uint bn;
-    struct dinode *dip;
+    char block_buffer[BSIZE];
+    uint block_number;
+    struct dinode *target_inode;
 
-    bn = IBLOCK(inum, sb);
-    rsect(bn, buf);
-    dip = ((struct dinode *)buf) + (inum % IPB);
-    *dip = *ip;
-    wsect(bn, buf);
+    block_number = IBLOCK(inode_number, file_system_superblock);
+    read_sector(block_number, block_buffer);
+    target_inode = ((struct dinode *)block_buffer) + (inode_number % IPB);
+    *target_inode = *disk_inode;
+    write_sector(block_number, block_buffer);
 }
 
-void rinode(uint inum, struct dinode *ip)
+void read_inode(uint inode_number, struct dinode *disk_inode_out)
 {
-    char buf[BSIZE];
-    uint bn;
-    struct dinode *dip;
+    char block_buffer[BSIZE];
+    uint block_number;
+    struct dinode *source_inode;
 
-    bn = IBLOCK(inum, sb);
-    rsect(bn, buf);
-    dip = ((struct dinode *)buf) + (inum % IPB);
-    *ip = *dip;
+    block_number = IBLOCK(inode_number, file_system_superblock);
+    read_sector(block_number, block_buffer);
+    source_inode = ((struct dinode *)block_buffer) + (inode_number % IPB);
+    *disk_inode_out = *source_inode;
 }
 
-void rsect(uint sec, void *buf)
+void read_sector(uint sector_number, void *buffer)
 {
-    if (lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE)
+    if (lseek(file_system_fd, sector_number * BSIZE, 0) !=
+        sector_number * BSIZE)
         die("lseek");
-    if (read(fsfd, buf, BSIZE) != BSIZE)
+    if (read(file_system_fd, buffer, BSIZE) != BSIZE)
         die("read");
 }
 
-uint ialloc(ushort type)
+uint allocate_inode(ushort type)
 {
-    uint inum = freeinode++;
-    struct dinode din;
+    uint inode_number = next_free_inode_number++;
+    struct dinode disk_inode;
 
-    bzero(&din, sizeof(din));
-    din.type = xshort(type);
-    din.nlink = xshort(1);
-    din.size = xint(0);
-    winode(inum, &din);
-    return inum;
+    bzero(&disk_inode, sizeof(disk_inode));
+    disk_inode.type = encode_uint16(type);
+    disk_inode.link_count = encode_uint16(1);
+    disk_inode.size = encode_uint32(0);
+    write_inode(inode_number, &disk_inode);
+    return inode_number;
 }
 
-void balloc(int used)
+void write_allocation_bitmap(int allocated_block_count)
 {
-    uchar buf[BSIZE];
+    uchar bitmap[BSIZE];
     int i;
 
-    printf("balloc: first %d blocks have been allocated\n", used);
-    assert(used < BPB);
-    bzero(buf, BSIZE);
-    for (i = 0; i < used; i++) {
-        buf[i / 8] = buf[i / 8] | (0x1 << (i % 8));
+    printf("balloc: first %d blocks have been allocated\n",
+           allocated_block_count);
+    assert(allocated_block_count < BPB);
+    bzero(bitmap, BSIZE);
+    for (i = 0; i < allocated_block_count; i++) {
+        bitmap[i / 8] = bitmap[i / 8] | (0x1 << (i % 8));
     }
-    printf("balloc: write bitmap block at sector %d\n", sb.bmapstart);
-    wsect(sb.bmapstart, buf);
+    printf("balloc: write bitmap block at sector %d\n",
+           file_system_superblock.bitmap_start_block);
+    write_sector(file_system_superblock.bitmap_start_block, bitmap);
 }
 
-#define min(a, b) ((a) < (b) ? (a) : (b))
+#define MIN(left, right) ((left) < (right) ? (left) : (right))
 
-void iappend(uint inum, void *xp, int n)
+void append_inode_data(uint inode_number, void *source, int byte_count)
 {
-    char *p = (char *)xp;
-    uint fbn, off, n1;
-    struct dinode din;
-    char buf[BSIZE];
-    uint indirect[NINDIRECT];
-    uint x;
+    char *source_bytes = (char *)source;
+    uint file_block_number, offset, bytes_to_copy;
+    struct dinode disk_inode;
+    char block_buffer[BSIZE];
+    uint indirect_blocks[NINDIRECT];
+    uint disk_block_number;
 
-    rinode(inum, &din);
-    off = xint(din.size);
-    // printf("append inum %d at off %d sz %d\n", inum, off, n);
-    while (n > 0) {
-        fbn = off / BSIZE;
-        assert(fbn < MAXFILE);
-        if (fbn < NDIRECT) {
-            if (xint(din.addrs[fbn]) == 0) {
-                din.addrs[fbn] = xint(freeblock++);
+    read_inode(inode_number, &disk_inode);
+    offset = encode_uint32(disk_inode.size);
+    while (byte_count > 0) {
+        file_block_number = offset / BSIZE;
+        assert(file_block_number < MAXFILE);
+        if (file_block_number < NDIRECT) {
+            if (encode_uint32(disk_inode.block_addresses[file_block_number]) ==
+                0) {
+                disk_inode.block_addresses[file_block_number] =
+                    encode_uint32(next_free_block_number++);
             }
-            x = xint(din.addrs[fbn]);
+            disk_block_number = encode_uint32(
+                disk_inode.block_addresses[file_block_number]);
         } else {
-            if (xint(din.addrs[NDIRECT]) == 0) {
-                din.addrs[NDIRECT] = xint(freeblock++);
+            if (encode_uint32(disk_inode.block_addresses[NDIRECT]) == 0) {
+                disk_inode.block_addresses[NDIRECT] =
+                    encode_uint32(next_free_block_number++);
             }
-            rsect(xint(din.addrs[NDIRECT]), (char *)indirect);
-            if (indirect[fbn - NDIRECT] == 0) {
-                indirect[fbn - NDIRECT] = xint(freeblock++);
-                wsect(xint(din.addrs[NDIRECT]), (char *)indirect);
+            read_sector(encode_uint32(disk_inode.block_addresses[NDIRECT]),
+                        (char *)indirect_blocks);
+            if (indirect_blocks[file_block_number - NDIRECT] == 0) {
+                indirect_blocks[file_block_number - NDIRECT] =
+                    encode_uint32(next_free_block_number++);
+                write_sector(
+                    encode_uint32(disk_inode.block_addresses[NDIRECT]),
+                    (char *)indirect_blocks);
             }
-            x = xint(indirect[fbn - NDIRECT]);
+            disk_block_number =
+                encode_uint32(indirect_blocks[file_block_number - NDIRECT]);
         }
-        n1 = min(n, (fbn + 1) * BSIZE - off);
-        rsect(x, buf);
-        bcopy(p, buf + off - (fbn * BSIZE), n1);
-        wsect(x, buf);
-        n -= n1;
-        off += n1;
-        p += n1;
+        bytes_to_copy = MIN(byte_count,
+                            (file_block_number + 1) * BSIZE - offset);
+        read_sector(disk_block_number, block_buffer);
+        bcopy(source_bytes,
+              block_buffer + offset - (file_block_number * BSIZE),
+              bytes_to_copy);
+        write_sector(disk_block_number, block_buffer);
+        byte_count -= bytes_to_copy;
+        offset += bytes_to_copy;
+        source_bytes += bytes_to_copy;
     }
-    din.size = xint(off);
-    winode(inum, &din);
+    disk_inode.size = encode_uint32(offset);
+    write_inode(inode_number, &disk_inode);
 }
 
-void die(const char *s)
+void die(const char *message)
 {
-    perror(s);
+    perror(message);
     exit(1);
 }

@@ -10,133 +10,133 @@
 //
 void start(int argc, char **argv)
 {
-    int r;
+    int exit_status;
     extern int main(int argc, char **argv);
-    r = main(argc, argv);
-    exit(r);
+    exit_status = main(argc, argv);
+    exit(exit_status);
 }
 
-char *strcpy(char *s, const char *t)
+char *strcpy(char *destination, const char *source)
 {
-    char *os;
+    char *original_destination;
 
-    os = s;
-    while ((*s++ = *t++) != 0)
+    original_destination = destination;
+    while ((*destination++ = *source++) != 0)
         ;
-    return os;
+    return original_destination;
 }
 
-int strcmp(const char *p, const char *q)
+int strcmp(const char *left, const char *right)
 {
-    while (*p && *p == *q)
-        p++, q++;
-    return (uchar)*p - (uchar)*q;
+    while (*left && *left == *right)
+        left++, right++;
+    return (uchar)*left - (uchar)*right;
 }
 
-uint strlen(const char *s)
+uint strlen(const char *string)
 {
-    int n;
+    int length;
 
-    for (n = 0; s[n]; n++)
+    for (length = 0; string[length]; length++)
         ;
-    return n;
+    return length;
 }
 
-void *memset(void *dst, int c, uint n)
+void *memset(void *destination, int value, uint byte_count)
 {
-    char *cdst = (char *)dst;
+    char *destination_bytes = (char *)destination;
     int i;
-    for (i = 0; i < n; i++) {
-        cdst[i] = c;
+    for (i = 0; i < byte_count; i++) {
+        destination_bytes[i] = value;
     }
-    return dst;
+    return destination;
 }
 
-char *strchr(const char *s, char c)
+char *strchr(const char *string, char character)
 {
-    for (; *s; s++)
-        if (*s == c)
-            return (char *)s;
+    for (; *string; string++)
+        if (*string == character)
+            return (char *)string;
     return 0;
 }
 
-char *gets(char *buf, int max)
+char *gets(char *buffer, int max_length)
 {
-    int i, cc;
-    char c;
+    int i, bytes_read;
+    char character;
 
-    for (i = 0; i + 1 < max;) {
-        cc = read(0, &c, 1);
-        if (cc < 1)
+    for (i = 0; i + 1 < max_length;) {
+        bytes_read = read(0, &character, 1);
+        if (bytes_read < 1)
             break;
-        buf[i++] = c;
-        if (c == '\n' || c == '\r')
+        buffer[i++] = character;
+        if (character == '\n' || character == '\r')
             break;
     }
-    buf[i] = '\0';
-    return buf;
+    buffer[i] = '\0';
+    return buffer;
 }
 
-int stat(const char *n, struct stat *st)
+int stat(const char *path, struct stat *file_status)
 {
     int fd;
-    int r;
+    int status;
 
-    fd = open(n, O_RDONLY);
+    fd = open(path, O_RDONLY);
     if (fd < 0)
         return -1;
-    r = fstat(fd, st);
+    status = fstat(fd, file_status);
     close(fd);
-    return r;
+    return status;
 }
 
-int atoi(const char *s)
+int atoi(const char *string)
 {
-    int n;
+    int value;
 
-    n = 0;
-    while ('0' <= *s && *s <= '9')
-        n = n * 10 + *s++ - '0';
-    return n;
+    value = 0;
+    while ('0' <= *string && *string <= '9')
+        value = value * 10 + *string++ - '0';
+    return value;
 }
 
-void *memmove(void *vdst, const void *vsrc, int n)
+void *memmove(void *destination, const void *source, int byte_count)
 {
-    char *dst;
-    const char *src;
+    char *destination_bytes;
+    const char *source_bytes;
 
-    dst = vdst;
-    src = vsrc;
-    if (src > dst) {
-        while (n-- > 0)
-            *dst++ = *src++;
+    destination_bytes = destination;
+    source_bytes = source;
+    if (source_bytes > destination_bytes) {
+        while (byte_count-- > 0)
+            *destination_bytes++ = *source_bytes++;
     } else {
-        dst += n;
-        src += n;
-        while (n-- > 0)
-            *--dst = *--src;
+        destination_bytes += byte_count;
+        source_bytes += byte_count;
+        while (byte_count-- > 0)
+            *--destination_bytes = *--source_bytes;
     }
-    return vdst;
+    return destination;
 }
 
-int memcmp(const void *s1, const void *s2, uint n)
+int memcmp(const void *left, const void *right, uint byte_count)
 {
-    const char *p1 = s1, *p2 = s2;
-    while (n-- > 0) {
-        if (*p1 != *p2) {
-            return *p1 - *p2;
+    const char *left_bytes = left, *right_bytes = right;
+    while (byte_count-- > 0) {
+        if (*left_bytes != *right_bytes) {
+            return *left_bytes - *right_bytes;
         }
-        p1++;
-        p2++;
+        left_bytes++;
+        right_bytes++;
     }
     return 0;
 }
 
-void *memcpy(void *dst, const void *src, uint n)
+void *memcpy(void *destination, const void *source, uint byte_count)
 {
-    return memmove(dst, src, n);
+    return memmove(destination, source, byte_count);
 }
 
-char *sbrk(int n) { return sys_sbrk(n, SBRK_EAGER); }
+char *sbrk(int byte_count) { return sys_sbrk(byte_count, SBRK_EAGER); }
 
-char *sbrklazy(int n) { return sys_sbrk(n, SBRK_LAZY); }
+char *sbrklazy(int byte_count) { return sys_sbrk(byte_count, SBRK_LAZY); }

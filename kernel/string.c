@@ -1,98 +1,99 @@
 #include "types.h"
 
-void *memset(void *dst, int c, uint n)
+void *memset(void *destination, int value, uint byte_count)
 {
-    char *cdst = (char *)dst;
+    char *destination_bytes = (char *)destination;
     int i;
-    for (i = 0; i < n; i++) {
-        cdst[i] = c;
+    for (i = 0; i < byte_count; i++) {
+        destination_bytes[i] = value;
     }
-    return dst;
+    return destination;
 }
 
-int memcmp(const void *v1, const void *v2, uint n)
+int memcmp(const void *left, const void *right, uint byte_count)
 {
-    const uchar *s1, *s2;
+    const uchar *left_bytes, *right_bytes;
 
-    s1 = v1;
-    s2 = v2;
-    while (n-- > 0) {
-        if (*s1 != *s2)
-            return *s1 - *s2;
-        s1++, s2++;
+    left_bytes = left;
+    right_bytes = right;
+    while (byte_count-- > 0) {
+        if (*left_bytes != *right_bytes)
+            return *left_bytes - *right_bytes;
+        left_bytes++, right_bytes++;
     }
 
     return 0;
 }
 
-void *memmove(void *dst, const void *src, uint n)
+void *memmove(void *destination, const void *source, uint byte_count)
 {
-    const char *s;
-    char *d;
+    const char *source_bytes;
+    char *destination_bytes;
 
-    if (n == 0)
-        return dst;
+    if (byte_count == 0)
+        return destination;
 
-    s = src;
-    d = dst;
-    if (s < d && s + n > d) {
-        s += n;
-        d += n;
-        while (n-- > 0)
-            *--d = *--s;
+    source_bytes = source;
+    destination_bytes = destination;
+    if (source_bytes < destination_bytes &&
+        source_bytes + byte_count > destination_bytes) {
+        source_bytes += byte_count;
+        destination_bytes += byte_count;
+        while (byte_count-- > 0)
+            *--destination_bytes = *--source_bytes;
     } else
-        while (n-- > 0)
-            *d++ = *s++;
+        while (byte_count-- > 0)
+            *destination_bytes++ = *source_bytes++;
 
-    return dst;
+    return destination;
 }
 
 // memcpyはGCCを納得させるために存在する。memmoveを使う。
-void *memcpy(void *dst, const void *src, uint n)
+void *memcpy(void *destination, const void *source, uint byte_count)
 {
-    return memmove(dst, src, n);
+    return memmove(destination, source, byte_count);
 }
 
-int strncmp(const char *p, const char *q, uint n)
+int strncmp(const char *left, const char *right, uint max_length)
 {
-    while (n > 0 && *p && *p == *q)
-        n--, p++, q++;
-    if (n == 0)
+    while (max_length > 0 && *left && *left == *right)
+        max_length--, left++, right++;
+    if (max_length == 0)
         return 0;
-    return (uchar)*p - (uchar)*q;
+    return (uchar)*left - (uchar)*right;
 }
 
-char *strncpy(char *s, const char *t, int n)
+char *strncpy(char *destination, const char *source, int max_length)
 {
-    char *os;
+    char *original_destination;
 
-    os = s;
-    while (n-- > 0 && (*s++ = *t++) != 0)
+    original_destination = destination;
+    while (max_length-- > 0 && (*destination++ = *source++) != 0)
         ;
-    while (n-- > 0)
-        *s++ = 0;
-    return os;
+    while (max_length-- > 0)
+        *destination++ = 0;
+    return original_destination;
 }
 
 // strncpyに似ているが、必ずNUL終端する。
-char *safestrcpy(char *s, const char *t, int n)
+char *safestrcpy(char *destination, const char *source, int destination_size)
 {
-    char *os;
+    char *original_destination;
 
-    os = s;
-    if (n <= 0)
-        return os;
-    while (--n > 0 && (*s++ = *t++) != 0)
+    original_destination = destination;
+    if (destination_size <= 0)
+        return original_destination;
+    while (--destination_size > 0 && (*destination++ = *source++) != 0)
         ;
-    *s = 0;
-    return os;
+    *destination = 0;
+    return original_destination;
 }
 
-int strlen(const char *s)
+int strlen(const char *string)
 {
-    int n;
+    int length;
 
-    for (n = 0; s[n]; n++)
+    for (length = 0; string[length]; length++)
         ;
-    return n;
+    return length;
 }

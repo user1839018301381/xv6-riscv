@@ -7,64 +7,73 @@
 #include "syscall.h"
 #include "defs.h"
 
-// 現在のプロセスのaddrからuint64を取得する。
-int fetchaddr(uint64 addr, uint64 *ip)
+// 現在のプロセスのaddressからuint64を読み出す。
+int fetchaddr(uint64 address, uint64 *value_out)
 {
-    struct proc *p = myproc();
-    if (addr >= p->sz ||
-        addr + sizeof(uint64) > p->sz) // オーバーフローに備えて両方の検査が必要
+    struct proc *process = myproc();
+    if (address >= process->memory_size ||
+        address + sizeof(uint64) > process->memory_size) // オーバーフローに備えて両方の検査が必要
         return -1;
-    if (copyin(p->pagetable, p->sz, (char *)ip, addr, sizeof(*ip)) != 0)
+    if (copyin(process->pagetable, process->memory_size, (char *)value_out,
+               address, sizeof(*value_out)) != 0)
         return -1;
     return 0;
 }
 
-// 現在のプロセスのaddrからNUL終端文字列を取得する。
+// 現在のプロセスのaddressからNUL終端文字列を読み出す。
 // 文字列長（NULを含まない）、またはエラー時に-1を返す。
-int fetchstr(uint64 addr, char *buf, int max)
+int fetchstr(uint64 address, char *buffer, int max_length)
 {
-    struct proc *p = myproc();
-    if (copyinstr(p->pagetable, p->sz, buf, addr, max) < 0)
+    struct proc *process = myproc();
+    if (copyinstr(process->pagetable, process->memory_size, buffer,
+                  address, max_length) < 0)
         return -1;
-    return strlen(buf);
+    return strlen(buffer);
 }
 
-static uint64 argraw(int n)
+static uint64 argraw(int argument_index)
 {
-    struct proc *p = myproc();
-    switch (n) {
+    struct proc *process = myproc();
+    switch (argument_index) {
     case 0:
-        return p->trapframe->a0;
+        return process->trapframe->a0;
     case 1:
-        return p->trapframe->a1;
+        return process->trapframe->a1;
     case 2:
-        return p->trapframe->a2;
+        return process->trapframe->a2;
     case 3:
-        return p->trapframe->a3;
+        return process->trapframe->a3;
     case 4:
-        return p->trapframe->a4;
+        return process->trapframe->a4;
     case 5:
-        return p->trapframe->a5;
+        return process->trapframe->a5;
     }
     panic("argraw");
     return -1;
 }
 
-// n番目の32ビットシステムコール引数を取得する。
-void argint(int n, int *ip) { *ip = argraw(n); }
+// argument_index番目の32ビットシステムコール引数を読み出す。
+void argint(int argument_index, int *value_out)
+{
+    *value_out = argraw(argument_index);
+}
 
 // 引数をポインタとして取得する。
 // copyin/copyoutが検査するため、正当性は確認しない。
-void argaddr(int n, uint64 *ip) { *ip = argraw(n); }
-
-// n番目のワードサイズのシステムコール引数をNUL終端文字列として取得する。
-// 最大maxバイトをbufへ複写する。
-// 成功時は文字列長（NULを含まない）、エラー時は-1を返す。
-int argstr(int n, char *buf, int max)
+void argaddr(int argument_index, uint64 *address_out)
 {
-    uint64 addr;
-    argaddr(n, &addr);
-    return fetchstr(addr, buf, max);
+    *address_out = argraw(argument_index);
+}
+
+// argument_index番目のワードサイズのシステムコール引数を
+// NUL終端文字列として読み出す。
+// 最大max_lengthバイトをbufferへ複写する。
+// 成功時は文字列長（NULを含まない）、エラー時は-1を返す。
+int argstr(int argument_index, char *buffer, int max_length)
+{
+    uint64 address;
+    argaddr(argument_index, &address);
+    return fetchstr(address, buffer, max_length);
 }
 
 // システムコールを処理する関数のプロトタイプ。
@@ -122,16 +131,18 @@ static uint64 (*syscalls[])(void) = {
 
 void syscall(void)
 {
-    int num;
-    struct proc *p = myproc();
+    int syscall_number;
+    struct proc *process = myproc();
 
-    num = p->trapframe->a7;
-    if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-        // numを使ってnumのシステムコール処理関数を検索・呼び出し、
-        // 戻り値をp->trapframe->a0に保存する。
-        p->trapframe->a0 = syscalls[num]();
+    syscall_number = process->trapframe->a7;
+    if (syscall_number > 0 && syscall_number < NELEM(syscalls) &&
+        syscalls[syscall_number]) {
+        // syscall_numberに対応するシステムコール処理関数を呼び出し、
+        // 戻り値をprocess->trapframe->a0に保存する。
+        process->trapframe->a0 = syscalls[syscall_number]();
     } else {
-        printk("%d %s: unknown sys call %d\n", p->pid, p->name, num);
-        p->trapframe->a0 = -1;
+        printk("%d %s: unknown sys call %d\n", process->pid,
+               process->name, syscall_number);
+        process->trapframe->a0 = -1;
     }
 }

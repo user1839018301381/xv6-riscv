@@ -6,121 +6,125 @@
 
 static char digits[] = "0123456789ABCDEF";
 
-static void putc(int fd, char c) { write(fd, &c, 1); }
+static void putc(int fd, char character) { write(fd, &character, 1); }
 
-static void printint(int fd, long long xx, int base, int sgn)
+static void printint(int fd, long long value, int base, int is_signed)
 {
-    char buf[20];
-    int i, neg;
-    unsigned long long x;
+    char digit_buffer[20];
+    int digit_index, is_negative;
+    unsigned long long magnitude;
 
-    neg = 0;
-    if (sgn && xx < 0) {
-        neg = 1;
-        x = -xx;
+    is_negative = 0;
+    if (is_signed && value < 0) {
+        is_negative = 1;
+        magnitude = -value;
     } else {
-        x = xx;
+        magnitude = value;
     }
 
-    i = 0;
+    digit_index = 0;
     do {
-        buf[i++] = digits[x % base];
-    } while ((x /= base) != 0);
-    if (neg)
-        buf[i++] = '-';
+        digit_buffer[digit_index++] = digits[magnitude % base];
+    } while ((magnitude /= base) != 0);
+    if (is_negative)
+        digit_buffer[digit_index++] = '-';
 
-    while (--i >= 0)
-        putc(fd, buf[i]);
+    while (--digit_index >= 0)
+        putc(fd, digit_buffer[digit_index]);
 }
 
-static void printptr(int fd, uint64 x)
+static void printptr(int fd, uint64 pointer_value)
 {
     int i;
     putc(fd, '0');
     putc(fd, 'x');
-    for (i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
-        putc(fd, digits[x >> (sizeof(uint64) * 8 - 4)]);
+    for (i = 0; i < (sizeof(uint64) * 2); i++, pointer_value <<= 4)
+        putc(fd, digits[pointer_value >> (sizeof(uint64) * 8 - 4)]);
 }
 
 // 指定の fd へ出力する。%d、%x、%p、%c、%s のみ解釈する。
-void vprintf(int fd, const char *fmt, va_list ap)
+void vprintf(int fd, const char *format, va_list arguments)
 {
-    char *s;
-    int c0, c1, c2, i, state;
+    char *string;
+    int specifier_first, specifier_second, specifier_third, i;
+    int is_parsing_specifier;
 
-    state = 0;
-    for (i = 0; fmt[i]; i++) {
-        c0 = fmt[i] & 0xff;
-        if (state == 0) {
-            if (c0 == '%') {
-                state = '%';
+    is_parsing_specifier = 0;
+    for (i = 0; format[i]; i++) {
+        specifier_first = format[i] & 0xff;
+        if (!is_parsing_specifier) {
+            if (specifier_first == '%') {
+                is_parsing_specifier = 1;
             } else {
-                putc(fd, c0);
+                putc(fd, specifier_first);
             }
-        } else if (state == '%') {
-            c1 = c2 = 0;
-            if (c0)
-                c1 = fmt[i + 1] & 0xff;
-            if (c1)
-                c2 = fmt[i + 2] & 0xff;
-            if (c0 == 'd') {
-                printint(fd, va_arg(ap, int), 10, 1);
-            } else if (c0 == 'l' && c1 == 'd') {
-                printint(fd, va_arg(ap, uint64), 10, 1);
+        } else {
+            specifier_second = specifier_third = 0;
+            if (specifier_first)
+                specifier_second = format[i + 1] & 0xff;
+            if (specifier_second)
+                specifier_third = format[i + 2] & 0xff;
+            if (specifier_first == 'd') {
+                printint(fd, va_arg(arguments, int), 10, 1);
+            } else if (specifier_first == 'l' && specifier_second == 'd') {
+                printint(fd, va_arg(arguments, uint64), 10, 1);
                 i += 1;
-            } else if (c0 == 'l' && c1 == 'l' && c2 == 'd') {
-                printint(fd, va_arg(ap, uint64), 10, 1);
+            } else if (specifier_first == 'l' && specifier_second == 'l' &&
+                       specifier_third == 'd') {
+                printint(fd, va_arg(arguments, uint64), 10, 1);
                 i += 2;
-            } else if (c0 == 'u') {
-                printint(fd, va_arg(ap, uint32), 10, 0);
-            } else if (c0 == 'l' && c1 == 'u') {
-                printint(fd, va_arg(ap, uint64), 10, 0);
+            } else if (specifier_first == 'u') {
+                printint(fd, va_arg(arguments, uint32), 10, 0);
+            } else if (specifier_first == 'l' && specifier_second == 'u') {
+                printint(fd, va_arg(arguments, uint64), 10, 0);
                 i += 1;
-            } else if (c0 == 'l' && c1 == 'l' && c2 == 'u') {
-                printint(fd, va_arg(ap, uint64), 10, 0);
+            } else if (specifier_first == 'l' && specifier_second == 'l' &&
+                       specifier_third == 'u') {
+                printint(fd, va_arg(arguments, uint64), 10, 0);
                 i += 2;
-            } else if (c0 == 'x') {
-                printint(fd, va_arg(ap, uint32), 16, 0);
-            } else if (c0 == 'l' && c1 == 'x') {
-                printint(fd, va_arg(ap, uint64), 16, 0);
+            } else if (specifier_first == 'x') {
+                printint(fd, va_arg(arguments, uint32), 16, 0);
+            } else if (specifier_first == 'l' && specifier_second == 'x') {
+                printint(fd, va_arg(arguments, uint64), 16, 0);
                 i += 1;
-            } else if (c0 == 'l' && c1 == 'l' && c2 == 'x') {
-                printint(fd, va_arg(ap, uint64), 16, 0);
+            } else if (specifier_first == 'l' && specifier_second == 'l' &&
+                       specifier_third == 'x') {
+                printint(fd, va_arg(arguments, uint64), 16, 0);
                 i += 2;
-            } else if (c0 == 'p') {
-                printptr(fd, va_arg(ap, uint64));
-            } else if (c0 == 'c') {
-                putc(fd, va_arg(ap, uint32));
-            } else if (c0 == 's') {
-                if ((s = va_arg(ap, char *)) == 0)
-                    s = "(null)";
-                for (; *s; s++)
-                    putc(fd, *s);
-            } else if (c0 == '%') {
+            } else if (specifier_first == 'p') {
+                printptr(fd, va_arg(arguments, uint64));
+            } else if (specifier_first == 'c') {
+                putc(fd, va_arg(arguments, uint32));
+            } else if (specifier_first == 's') {
+                if ((string = va_arg(arguments, char *)) == 0)
+                    string = "(null)";
+                for (; *string; string++)
+                    putc(fd, *string);
+            } else if (specifier_first == '%') {
                 putc(fd, '%');
             } else {
                 // 未知の%シーケンス。注意を促すためそのまま出力する。
                 putc(fd, '%');
-                putc(fd, c0);
+                putc(fd, specifier_first);
             }
 
-            state = 0;
+            is_parsing_specifier = 0;
         }
     }
 }
 
-void fprintf(int fd, const char *fmt, ...)
+void fprintf(int fd, const char *format, ...)
 {
-    va_list ap;
+    va_list arguments;
 
-    va_start(ap, fmt);
-    vprintf(fd, fmt, ap);
+    va_start(arguments, format);
+    vprintf(fd, format, arguments);
 }
 
-void printf(const char *fmt, ...)
+void printf(const char *format, ...)
 {
-    va_list ap;
+    va_list arguments;
 
-    va_start(ap, fmt);
-    vprintf(1, fmt, ap);
+    va_start(arguments, format);
+    vprintf(1, format, arguments);
 }

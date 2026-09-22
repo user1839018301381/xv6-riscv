@@ -12,13 +12,13 @@
 // スーパーブロックはディスク配置を記述する:
 struct superblock {
     uint magic;      // FSMAGICでなければならない
-    uint size;       // ファイルシステム全体のサイズ（ブロック数）
-    uint nblocks;    // データブロック数
-    uint ninodes;    // inode数。
-    uint nlog;       // ログブロック数
-    uint logstart;   // 先頭ログブロックのブロック番号
-    uint inodestart; // 先頭inodeブロックのブロック番号
-    uint bmapstart;  // 先頭空きマップブロックのブロック番号
+    uint total_block_count;
+    uint data_block_count;
+    uint inode_count;
+    uint log_block_count;
+    uint log_start_block;
+    uint inode_start_block;
+    uint bitmap_start_block;
 };
 
 #define FSMAGIC 0x10203040
@@ -33,28 +33,30 @@ struct dinode {
     short type;              // ファイル種別
     short major;             // メジャーデバイス番号（T_DEVICEのみ）
     short minor;             // マイナーデバイス番号（T_DEVICEのみ）
-    short nlink;             // ファイルシステム内でのこのinodeへのリンク数
+    short link_count;
     uint size;               // ファイルサイズ（バイト）
-    uint addrs[NDIRECT + 1]; // データブロックのアドレス
+    uint block_addresses[NDIRECT + 1];
 };
 
 // 1ブロックあたりのinode数。
 #define IPB (BSIZE / sizeof(struct dinode))
 
 // inode iを含むブロック
-#define IBLOCK(i, sb) ((i) / IPB + sb.inodestart)
+#define IBLOCK(inode_number, superblock)                                      \
+    ((inode_number) / IPB + (superblock).inode_start_block)
 
 // 1ブロックあたりのビットマップビット数
 #define BPB (BSIZE * 8)
 
 // ブロックbのビットを含む空きマップのブロック
-#define BBLOCK(b, sb) ((b) / BPB + sb.bmapstart)
+#define BBLOCK(block_number, superblock)                                      \
+    ((block_number) / BPB + (superblock).bitmap_start_block)
 
 // ディレクトリはdirent構造体の列を含むファイルである。
 #define DIRSIZ 14
 
 // nameフィールドはDIRSIZ文字を含むことがあり、NUL文字で終わらない。
 struct dirent {
-    ushort inum;
+    ushort inode_number;
     char name[DIRSIZ] __attribute__((nonstring));
 };

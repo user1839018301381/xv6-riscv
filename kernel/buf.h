@@ -1,11 +1,11 @@
 struct buf {
-    int valid; // ディスクからデータが読み込まれたか?
-    int disk;  // ディスクがこのbufを「所有」しているか?
-    uint dev;
-    uint blockno;
+    int is_valid;
+    int is_disk_owned;
+    uint device;
+    uint block_number;
     struct sleeplock lock;
-    uint refcnt;
-    struct buf *prev; // LRUキャッシュリスト
+    uint reference_count;
+    struct buf *previous; // LRUキャッシュリスト
     struct buf *next;
-    uchar data[BSIZE];
+    uchar block_data[BSIZE];
 };

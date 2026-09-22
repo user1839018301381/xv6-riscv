@@ -18,7 +18,7 @@
 
 #define BUFSZ ((MAXOPBLOCKS + 2) * BSIZE)
 
-char buf[BUFSZ];
+char buffer[BUFSZ];
 
 //
 // 比較的速く実行できるテストのセクション。これらだけ実行するには-qを使う。
@@ -27,107 +27,117 @@ char buf[BUFSZ];
 
 // copyinでユーザメモリを読むシステムコールに、
 // 異常なポインタを渡したらどうなるか?
-void copyin(char *s)
+void copyin(char *test_name)
 {
-    uint64 addrs[] = {0x80000000LL, 0x3fffffe000, 0x3ffffff000, 0x4000000000,
-                      0xffffffffffffffff};
+    uint64 invalid_addresses[] = {0x80000000LL, 0x3fffffe000, 0x3ffffff000,
+                                  0x4000000000, 0xffffffffffffffff};
 
-    for (int ai = 0; ai < sizeof(addrs) / sizeof(addrs[0]); ai++) {
-        uint64 addr = addrs[ai];
+    for (int address_index = 0;
+         address_index < sizeof(invalid_addresses) /
+                             sizeof(invalid_addresses[0]);
+         address_index++) {
+        uint64 address = invalid_addresses[address_index];
 
         int fd = open("copyin1", O_CREATE | O_WRONLY);
         if (fd < 0) {
             printf("open(copyin1) failed\n");
             exit(1);
         }
-        int n = write(fd, (void *)addr, 8192);
-        if (n >= 0) {
-            printf("write(fd, %p, 8192) returned %d, not -1\n", (void *)addr,
-                   n);
+        int io_result = write(fd, (void *)address, 8192);
+        if (io_result >= 0) {
+            printf("write(fd, %p, 8192) returned %d, not -1\n",
+                   (void *)address, io_result);
             exit(1);
         }
         close(fd);
         unlink("copyin1");
 
-        n = write(1, (char *)addr, 8192);
-        if (n > 0) {
+        io_result = write(1, (char *)address, 8192);
+        if (io_result > 0) {
             printf("write(1, %p, 8192) returned %d, not -1 or 0\n",
-                   (void *)addr, n);
+                   (void *)address, io_result);
             exit(1);
         }
 
-        int fds[2];
-        if (pipe(fds) < 0) {
+        int pipe_fds[2];
+        if (pipe(pipe_fds) < 0) {
             printf("pipe() failed\n");
             exit(1);
         }
-        n = write(fds[1], (char *)addr, 8192);
-        if (n > 0) {
+        io_result = write(pipe_fds[1], (char *)address, 8192);
+        if (io_result > 0) {
             printf("write(pipe, %p, 8192) returned %d, not -1 or 0\n",
-                   (void *)addr, n);
+                   (void *)address, io_result);
             exit(1);
         }
-        close(fds[0]);
-        close(fds[1]);
+        close(pipe_fds[0]);
+        close(pipe_fds[1]);
     }
 }
 
 // copyoutでユーザメモリへ書くシステムコールに、
 // 異常なポインタを渡したらどうなるか?
-void copyout(char *s)
+void copyout(char *test_name)
 {
-    uint64 addrs[] = {0LL,          0x80000000LL, 0x3fffffe000,
-                      0x3ffffff000, 0x4000000000, 0xffffffffffffffff};
+    uint64 invalid_addresses[] = {0LL,          0x80000000LL, 0x3fffffe000,
+                                  0x3ffffff000, 0x4000000000,
+                                  0xffffffffffffffff};
 
-    for (int ai = 0; ai < sizeof(addrs) / sizeof(addrs[0]); ai++) {
-        uint64 addr = addrs[ai];
+    for (int address_index = 0;
+         address_index < sizeof(invalid_addresses) /
+                             sizeof(invalid_addresses[0]);
+         address_index++) {
+        uint64 address = invalid_addresses[address_index];
 
         int fd = open("README", 0);
         if (fd < 0) {
             printf("open(README) failed\n");
             exit(1);
         }
-        int n = read(fd, (void *)addr, 8192);
-        if (n > 0) {
+        int io_result = read(fd, (void *)address, 8192);
+        if (io_result > 0) {
             printf("read(fd, %p, 8192) returned %d, not -1 or 0\n",
-                   (void *)addr, n);
+                   (void *)address, io_result);
             exit(1);
         }
         close(fd);
 
-        int fds[2];
-        if (pipe(fds) < 0) {
+        int pipe_fds[2];
+        if (pipe(pipe_fds) < 0) {
             printf("pipe() failed\n");
             exit(1);
         }
-        n = write(fds[1], "x", 1);
-        if (n != 1) {
+        io_result = write(pipe_fds[1], "x", 1);
+        if (io_result != 1) {
             printf("pipe write failed\n");
             exit(1);
         }
-        n = read(fds[0], (void *)addr, 8192);
-        if (n > 0) {
+        io_result = read(pipe_fds[0], (void *)address, 8192);
+        if (io_result > 0) {
             printf("read(pipe, %p, 8192) returned %d, not -1 or 0\n",
-                   (void *)addr, n);
+                   (void *)address, io_result);
             exit(1);
         }
-        close(fds[0]);
-        close(fds[1]);
+        close(pipe_fds[0]);
+        close(pipe_fds[1]);
     }
 }
 
 // システムコールに異常な文字列ポインタを渡したらどうなるか?
-void copyinstr1(char *s)
+void copyinstr1(char *test_name)
 {
-    uint64 addrs[] = {0x80000000LL, 0x3fffffe000, 0x3ffffff000, 0x4000000000,
-                      0xffffffffffffffff};
+    uint64 invalid_addresses[] = {0x80000000LL, 0x3fffffe000, 0x3ffffff000,
+                                  0x4000000000, 0xffffffffffffffff};
 
-    for (int ai = 0; ai < sizeof(addrs) / sizeof(addrs[0]); ai++) {
-        uint64 addr = addrs[ai];
+    for (int address_index = 0;
+         address_index < sizeof(invalid_addresses) /
+                             sizeof(invalid_addresses[0]);
+         address_index++) {
+        uint64 address = invalid_addresses[address_index];
 
-        int fd = open((char *)addr, O_CREATE | O_WRONLY);
+        int fd = open((char *)address, O_CREATE | O_WRONLY);
         if (fd >= 0) {
-            printf("open(%p) returned %d, not -1\n", (void *)addr, fd);
+            printf("open(%p) returned %d, not -1\n", (void *)address, fd);
             exit(1);
         }
     }
@@ -135,36 +145,38 @@ void copyinstr1(char *s)
 
 // 文字列システムコール引数が複写先のカーネルバッファとちょうど同じサイズで、
 // NULがカーネルバッファの末尾のすぐ外側に来たらどうなるか?
-void copyinstr2(char *s)
+void copyinstr2(char *test_name)
 {
-    char b[MAXPATH + 1];
+    char overlong_path[MAXPATH + 1];
 
     for (int i = 0; i < MAXPATH; i++)
-        b[i] = 'x';
-    b[MAXPATH] = '\0';
+        overlong_path[i] = 'x';
+    overlong_path[MAXPATH] = '\0';
 
-    int ret = unlink(b);
-    if (ret != -1) {
-        printf("unlink(%s) returned %d, not -1\n", b, ret);
+    int syscall_result = unlink(overlong_path);
+    if (syscall_result != -1) {
+        printf("unlink(%s) returned %d, not -1\n", overlong_path,
+               syscall_result);
         exit(1);
     }
 
-    int fd = open(b, O_CREATE | O_WRONLY);
+    int fd = open(overlong_path, O_CREATE | O_WRONLY);
     if (fd != -1) {
-        printf("open(%s) returned %d, not -1\n", b, fd);
+        printf("open(%s) returned %d, not -1\n", overlong_path, fd);
         exit(1);
     }
 
-    ret = link(b, b);
-    if (ret != -1) {
-        printf("link(%s, %s) returned %d, not -1\n", b, b, ret);
+    syscall_result = link(overlong_path, overlong_path);
+    if (syscall_result != -1) {
+        printf("link(%s, %s) returned %d, not -1\n", overlong_path,
+               overlong_path, syscall_result);
         exit(1);
     }
 
-    char *args[] = {"xx", 0};
-    ret = exec(b, args);
-    if (ret != -1) {
-        printf("exec(%s) returned %d, not -1\n", b, fd);
+    char *arguments[] = {"xx", 0};
+    syscall_result = exec(overlong_path, arguments);
+    if (syscall_result != -1) {
+        printf("exec(%s) returned %d, not -1\n", overlong_path, fd);
         exit(1);
     }
 
@@ -178,25 +190,25 @@ void copyinstr2(char *s)
         for (int i = 0; i < PGSIZE; i++)
             big[i] = 'x';
         big[PGSIZE] = '\0';
-        char *args2[] = {big, big, big, 0};
-        ret = exec("echo", args2);
-        if (ret != -1) {
+        char *large_arguments[] = {big, big, big, 0};
+        syscall_result = exec("echo", large_arguments);
+        if (syscall_result != -1) {
             printf("exec(echo, BIG) returned %d, not -1\n", fd);
             exit(1);
         }
         exit(747); // OK
     }
 
-    int st = 0;
-    wait(&st);
-    if (st != 747) {
+    int exit_status = 0;
+    wait(&exit_status);
+    if (exit_status != 747) {
         printf("exec(echo, BIG) succeeded, should have failed\n");
         exit(1);
     }
 }
 
 // 文字列引数が最後のユーザページの境界を越えたらどうなるか?
-void copyinstr3(char *s)
+void copyinstr3(char *test_name)
 {
     sbrk(8192);
     uint64 top = (uint64)sbrk(0);
@@ -209,44 +221,46 @@ void copyinstr3(char *s)
         exit(1);
     }
 
-    char *b = (char *)(top - 1);
-    *b = 'x';
+    char *unterminated_path = (char *)(top - 1);
+    *unterminated_path = 'x';
 
-    int ret = unlink(b);
-    if (ret != -1) {
-        printf("unlink(%s) returned %d, not -1\n", b, ret);
+    int syscall_result = unlink(unterminated_path);
+    if (syscall_result != -1) {
+        printf("unlink(%s) returned %d, not -1\n", unterminated_path,
+               syscall_result);
         exit(1);
     }
 
-    int fd = open(b, O_CREATE | O_WRONLY);
+    int fd = open(unterminated_path, O_CREATE | O_WRONLY);
     if (fd != -1) {
-        printf("open(%s) returned %d, not -1\n", b, fd);
+        printf("open(%s) returned %d, not -1\n", unterminated_path, fd);
         exit(1);
     }
 
-    ret = link(b, b);
-    if (ret != -1) {
-        printf("link(%s, %s) returned %d, not -1\n", b, b, ret);
+    syscall_result = link(unterminated_path, unterminated_path);
+    if (syscall_result != -1) {
+        printf("link(%s, %s) returned %d, not -1\n", unterminated_path,
+               unterminated_path, syscall_result);
         exit(1);
     }
 
-    char *args[] = {"xx", 0};
-    ret = exec(b, args);
-    if (ret != -1) {
-        printf("exec(%s) returned %d, not -1\n", b, fd);
+    char *arguments[] = {"xx", 0};
+    syscall_result = exec(unterminated_path, arguments);
+    if (syscall_result != -1) {
+        printf("exec(%s) returned %d, not -1\n", unterminated_path, fd);
         exit(1);
     }
 }
 
 // アプリケーションが返却したため、もはや所有していないユーザメモリを
 // カーネルが読み書き拒否することを確認する。
-void rwsbrk(char *s)
+void rwsbrk(char *test_name)
 {
-    int fd, n;
+    int fd, io_result;
 
-    uint64 a = (uint64)sbrk(8192);
+    uint64 allocation = (uint64)sbrk(8192);
 
-    if (a == (uint64)SBRK_ERROR) {
+    if (allocation == (uint64)SBRK_ERROR) {
         printf("sbrk(rwsbrk) failed\n");
         exit(1);
     }
@@ -261,10 +275,10 @@ void rwsbrk(char *s)
         printf("open(rwsbrk) failed\n");
         exit(1);
     }
-    n = write(fd, (void *)(a + PGSIZE), 1024);
-    if (n >= 0) {
-        printf("write(fd, %p, 1024) returned %d, not -1\n", (void *)a + PGSIZE,
-               n);
+    io_result = write(fd, (void *)(allocation + PGSIZE), 1024);
+    if (io_result >= 0) {
+        printf("write(fd, %p, 1024) returned %d, not -1\n",
+               (void *)allocation + PGSIZE, io_result);
         exit(1);
     }
     close(fd);
@@ -275,9 +289,10 @@ void rwsbrk(char *s)
         printf("open(README) failed\n");
         exit(1);
     }
-    n = read(fd, (void *)(a + PGSIZE), 10);
-    if (n >= 0) {
-        printf("read(fd, %p, 10) returned %d, not -1\n", (void *)a + PGSIZE, n);
+    io_result = read(fd, (void *)(allocation + PGSIZE), 10);
+    if (io_result >= 0) {
+        printf("read(fd, %p, 10) returned %d, not -1\n",
+               (void *)allocation + PGSIZE, io_result);
         exit(1);
     }
     close(fd);
@@ -286,9 +301,9 @@ void rwsbrk(char *s)
 }
 
 // O_TRUNCをテストする。
-void truncate1(char *s)
+void truncate1(char *test_name)
 {
-    char buf[32];
+    char buffer[32];
 
     unlink("truncfile");
     int fd1 = open("truncfile", O_CREATE | O_WRONLY | O_TRUNC);
@@ -296,40 +311,40 @@ void truncate1(char *s)
     close(fd1);
 
     int fd2 = open("truncfile", O_RDONLY);
-    int n = read(fd2, buf, sizeof(buf));
-    if (n != 4) {
-        printf("%s: read %d bytes, wanted 4\n", s, n);
+    int bytes_read = read(fd2, buffer, sizeof(buffer));
+    if (bytes_read != 4) {
+        printf("%s: read %d bytes, wanted 4\n", test_name, bytes_read);
         exit(1);
     }
 
     fd1 = open("truncfile", O_WRONLY | O_TRUNC);
 
     int fd3 = open("truncfile", O_RDONLY);
-    n = read(fd3, buf, sizeof(buf));
-    if (n != 0) {
+    bytes_read = read(fd3, buffer, sizeof(buffer));
+    if (bytes_read != 0) {
         printf("aaa fd3=%d\n", fd3);
-        printf("%s: read %d bytes, wanted 0\n", s, n);
+        printf("%s: read %d bytes, wanted 0\n", test_name, bytes_read);
         exit(1);
     }
 
-    n = read(fd2, buf, sizeof(buf));
-    if (n != 0) {
+    bytes_read = read(fd2, buffer, sizeof(buffer));
+    if (bytes_read != 0) {
         printf("bbb fd2=%d\n", fd2);
-        printf("%s: read %d bytes, wanted 0\n", s, n);
+        printf("%s: read %d bytes, wanted 0\n", test_name, bytes_read);
         exit(1);
     }
 
     write(fd1, "abcdef", 6);
 
-    n = read(fd3, buf, sizeof(buf));
-    if (n != 6) {
-        printf("%s: read %d bytes, wanted 6\n", s, n);
+    bytes_read = read(fd3, buffer, sizeof(buffer));
+    if (bytes_read != 6) {
+        printf("%s: read %d bytes, wanted 6\n", test_name, bytes_read);
         exit(1);
     }
 
-    n = read(fd2, buf, sizeof(buf));
-    if (n != 2) {
-        printf("%s: read %d bytes, wanted 2\n", s, n);
+    bytes_read = read(fd2, buffer, sizeof(buffer));
+    if (bytes_read != 2) {
+        printf("%s: read %d bytes, wanted 2\n", test_name, bytes_read);
         exit(1);
     }
 
@@ -343,7 +358,7 @@ void truncate1(char *s)
 // 直前にファイルが切り詰められたオープン中のFDへ書き込む。
 // これによりファイル末尾を越えたオフセットへの書き込みが発生する。
 // このような書き込みはxv6では（POSIXとは異なり）失敗するが、少なくともクラッシュしない。
-void truncate2(char *s)
+void truncate2(char *test_name)
 {
     unlink("truncfile");
 
@@ -352,9 +367,10 @@ void truncate2(char *s)
 
     int fd2 = open("truncfile", O_TRUNC | O_WRONLY);
 
-    int n = write(fd1, "x", 1);
-    if (n != -1) {
-        printf("%s: write returned %d, expected -1\n", s, n);
+    int bytes_written = write(fd1, "x", 1);
+    if (bytes_written != -1) {
+        printf("%s: write returned %d, expected -1\n", test_name,
+               bytes_written);
         exit(1);
     }
 
@@ -363,34 +379,35 @@ void truncate2(char *s)
     close(fd2);
 }
 
-void truncate3(char *s)
+void truncate3(char *test_name)
 {
-    int pid, xstatus;
+    int pid, exit_status;
 
     close(open("truncfile", O_CREATE | O_TRUNC | O_WRONLY));
 
     pid = fork();
     if (pid < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
 
     if (pid == 0) {
         for (int i = 0; i < 100; i++) {
-            char buf[32];
+            char buffer[32];
             int fd = open("truncfile", O_WRONLY);
             if (fd < 0) {
-                printf("%s: open failed\n", s);
+                printf("%s: open failed\n", test_name);
                 exit(1);
             }
-            int n = write(fd, "1234567890", 10);
-            if (n != 10) {
-                printf("%s: write got %d, expected 10\n", s, n);
+            int bytes_written = write(fd, "1234567890", 10);
+            if (bytes_written != 10) {
+                printf("%s: write got %d, expected 10\n", test_name,
+                       bytes_written);
                 exit(1);
             }
             close(fd);
             fd = open("truncfile", O_RDONLY);
-            read(fd, buf, sizeof(buf));
+            read(fd, buffer, sizeof(buffer));
             close(fd);
         }
         exit(0);
@@ -399,70 +416,71 @@ void truncate3(char *s)
     for (int i = 0; i < 150; i++) {
         int fd = open("truncfile", O_CREATE | O_WRONLY | O_TRUNC);
         if (fd < 0) {
-            printf("%s: open failed\n", s);
+            printf("%s: open failed\n", test_name);
             exit(1);
         }
-        int n = write(fd, "xxx", 3);
-        if (n != 3) {
-            printf("%s: write got %d, expected 3\n", s, n);
+        int bytes_written = write(fd, "xxx", 3);
+        if (bytes_written != 3) {
+            printf("%s: write got %d, expected 3\n", test_name,
+                   bytes_written);
             exit(1);
         }
         close(fd);
     }
 
-    wait(&xstatus);
+    wait(&exit_status);
     unlink("truncfile");
-    exit(xstatus);
+    exit(exit_status);
 }
 
 // chdir()はトランザクション内でiput(p->cwd)を呼ぶか?
-void iputtest(char *s)
+void iputtest(char *test_name)
 {
     if (mkdir("iputdir") < 0) {
-        printf("%s: mkdir failed\n", s);
+        printf("%s: mkdir failed\n", test_name);
         exit(1);
     }
     if (chdir("iputdir") < 0) {
-        printf("%s: chdir iputdir failed\n", s);
+        printf("%s: chdir iputdir failed\n", test_name);
         exit(1);
     }
     if (unlink("../iputdir") < 0) {
-        printf("%s: unlink ../iputdir failed\n", s);
+        printf("%s: unlink ../iputdir failed\n", test_name);
         exit(1);
     }
     if (chdir("/") < 0) {
-        printf("%s: chdir / failed\n", s);
+        printf("%s: chdir / failed\n", test_name);
         exit(1);
     }
 }
 
 // exit()はトランザクション内でiput(p->cwd)を呼ぶか?
-void exitiputtest(char *s)
+void exitiputtest(char *test_name)
 {
-    int pid, xstatus;
+    int pid, exit_status;
 
     pid = fork();
     if (pid < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
     if (pid == 0) {
         if (mkdir("iputdir") < 0) {
-            printf("%s: mkdir failed\n", s);
+            printf("%s: mkdir failed\n", test_name);
             exit(1);
         }
         if (chdir("iputdir") < 0) {
-            printf("%s: child chdir failed\n", s);
+            printf("%s: child chdir failed\n", test_name);
             exit(1);
         }
         if (unlink("../iputdir") < 0) {
-            printf("%s: unlink ../iputdir failed\n", s);
+            printf("%s: unlink ../iputdir failed\n", test_name);
             exit(1);
         }
         exit(0);
     }
-    wait(&xstatus);
-    exit(xstatus);
+    wait(&exit_status);
+    exit(exit_status);
 }
 
 // ディレクトリへの書き込みを試みるopen()のエラーパスは、
@@ -475,109 +493,109 @@ void exitiputtest(char *s)
 //      for(i = 0; i < 10000; i++)
 //        yield();
 //    }
-void openiputtest(char *s)
+void openiputtest(char *test_name)
 {
-    int pid, xstatus;
+    int pid, exit_status;
 
     if (mkdir("oidir") < 0) {
-        printf("%s: mkdir oidir failed\n", s);
+        printf("%s: mkdir oidir failed\n", test_name);
         exit(1);
     }
     pid = fork();
     if (pid < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
     if (pid == 0) {
         int fd = open("oidir", O_RDWR);
         if (fd >= 0) {
-            printf("%s: open directory for write succeeded\n", s);
+            printf("%s: open directory for write succeeded\n", test_name);
             exit(1);
         }
         exit(0);
     }
     pause(1);
     if (unlink("oidir") != 0) {
-        printf("%s: unlink failed\n", s);
+        printf("%s: unlink failed\n", test_name);
         exit(1);
     }
-    wait(&xstatus);
-    exit(xstatus);
+    wait(&exit_status);
+    exit(exit_status);
 }
 
 // 単純なファイルシステムテスト
 
-void opentest(char *s)
+void opentest(char *test_name)
 {
     int fd;
 
     fd = open("echo", 0);
     if (fd < 0) {
-        printf("%s: open echo failed!\n", s);
+        printf("%s: open echo failed!\n", test_name);
         exit(1);
     }
     close(fd);
     fd = open("doesnotexist", 0);
     if (fd >= 0) {
-        printf("%s: open doesnotexist succeeded!\n", s);
+        printf("%s: open doesnotexist succeeded!\n", test_name);
         exit(1);
     }
 }
 
-void writetest(char *s)
+void writetest(char *test_name)
 {
     int fd;
-    int i;
+    int i, bytes_read;
     enum { N = 100, SZ = 10 };
 
     fd = open("small", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: error: creat small failed!\n", s);
+        printf("%s: error: creat small failed!\n", test_name);
         exit(1);
     }
     for (i = 0; i < N; i++) {
         if (write(fd, "aaaaaaaaaa", SZ) != SZ) {
-            printf("%s: error: write aa %d new file failed\n", s, i);
+            printf("%s: error: write aa %d new file failed\n", test_name, i);
             exit(1);
         }
         if (write(fd, "bbbbbbbbbb", SZ) != SZ) {
-            printf("%s: error: write bb %d new file failed\n", s, i);
+            printf("%s: error: write bb %d new file failed\n", test_name, i);
             exit(1);
         }
     }
     close(fd);
     fd = open("small", O_RDONLY);
     if (fd < 0) {
-        printf("%s: error: open small failed!\n", s);
+        printf("%s: error: open small failed!\n", test_name);
         exit(1);
     }
-    i = read(fd, buf, N * SZ * 2);
-    if (i != N * SZ * 2) {
-        printf("%s: read failed\n", s);
+    bytes_read = read(fd, buffer, N * SZ * 2);
+    if (bytes_read != N * SZ * 2) {
+        printf("%s: read failed\n", test_name);
         exit(1);
     }
     close(fd);
 
     if (unlink("small") < 0) {
-        printf("%s: unlink small failed\n", s);
+        printf("%s: unlink small failed\n", test_name);
         exit(1);
     }
 }
 
-void writebig(char *s)
+void writebig(char *test_name)
 {
-    int i, fd, n;
+    int i, fd, block_count;
 
     fd = open("big", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: error: creat big failed!\n", s);
+        printf("%s: error: creat big failed!\n", test_name);
         exit(1);
     }
 
     for (i = 0; i < MAXFILE; i++) {
-        ((int *)buf)[0] = i;
-        if (write(fd, buf, BSIZE) != BSIZE) {
-            printf("%s: error: write big file failed i=%d\n", s, i);
+        ((int *)buffer)[0] = i;
+        if (write(fd, buffer, BSIZE) != BSIZE) {
+            printf("%s: error: write big file failed i=%d\n", test_name, i);
             exit(1);
         }
     }
@@ -586,39 +604,40 @@ void writebig(char *s)
 
     fd = open("big", O_RDONLY);
     if (fd < 0) {
-        printf("%s: error: open big failed!\n", s);
+        printf("%s: error: open big failed!\n", test_name);
         exit(1);
     }
 
-    n = 0;
+    block_count = 0;
     for (;;) {
-        i = read(fd, buf, BSIZE);
-        if (i == 0) {
-            if (n != MAXFILE) {
-                printf("%s: read only %d blocks from big", s, n);
+        int bytes_read = read(fd, buffer, BSIZE);
+        if (bytes_read == 0) {
+            if (block_count != MAXFILE) {
+                printf("%s: read only %d blocks from big", test_name,
+                       block_count);
                 exit(1);
             }
             break;
-        } else if (i != BSIZE) {
-            printf("%s: read failed %d\n", s, i);
+        } else if (bytes_read != BSIZE) {
+            printf("%s: read failed %d\n", test_name, bytes_read);
             exit(1);
         }
-        if (((int *)buf)[0] != n) {
-            printf("%s: read content of block %d is %d\n", s, n,
-                   ((int *)buf)[0]);
+        if (((int *)buffer)[0] != block_count) {
+            printf("%s: read content of block %d is %d\n", test_name,
+                   block_count, ((int *)buffer)[0]);
             exit(1);
         }
-        n++;
+        block_count++;
     }
     close(fd);
     if (unlink("big") < 0) {
-        printf("%s: unlink big failed\n", s);
+        printf("%s: unlink big failed\n", test_name);
         exit(1);
     }
 }
 
 // 多数のcreateの後にunlinkをテストする
-void createtest(char *s)
+void createtest(char *test_name)
 {
     int i, fd;
     enum { N = 52 };
@@ -639,152 +658,155 @@ void createtest(char *s)
     }
 }
 
-void dirtest(char *s)
+void dirtest(char *test_name)
 {
     if (mkdir("dir0") < 0) {
-        printf("%s: mkdir failed\n", s);
+        printf("%s: mkdir failed\n", test_name);
         exit(1);
     }
 
     if (chdir("dir0") < 0) {
-        printf("%s: chdir dir0 failed\n", s);
+        printf("%s: chdir dir0 failed\n", test_name);
         exit(1);
     }
 
     if (chdir("..") < 0) {
-        printf("%s: chdir .. failed\n", s);
+        printf("%s: chdir .. failed\n", test_name);
         exit(1);
     }
 
     if (unlink("dir0") < 0) {
-        printf("%s: unlink dir0 failed\n", s);
+        printf("%s: unlink dir0 failed\n", test_name);
         exit(1);
     }
 }
 
-void exectest(char *s)
+void exectest(char *test_name)
 {
-    int fd, xstatus, pid;
+    int fd, exit_status, pid;
     char *echoargv[] = {"echo", "OK", 0};
-    char buf[3];
+    char buffer[3];
 
     unlink("echo-ok");
     pid = fork();
     if (pid < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
     if (pid == 0) {
         int errfd = dup(1);
         if (errfd < 0) {
-            printf("%s: dup failed\n", s);
+            printf("%s: dup failed\n", test_name);
             exit(1);
         }
         close(1);
         fd = open("echo-ok", O_CREATE | O_WRONLY);
         if (fd < 0) {
-            fprintf(errfd, "%s: create failed\n", s);
+            fprintf(errfd, "%s: create failed\n", test_name);
             exit(1);
         }
         if (fd != 1) {
-            fprintf(errfd, "%s: wrong fd\n", s);
+            fprintf(errfd, "%s: wrong fd\n", test_name);
             exit(1);
         }
         if (exec("echo", echoargv) < 0) {
-            fprintf(errfd, "%s: exec echo failed\n", s);
+            fprintf(errfd, "%s: exec echo failed\n", test_name);
             exit(1);
         }
         // ここには到達しない
     }
-    if (wait(&xstatus) != pid) {
-        printf("%s: wait failed!\n", s);
+    if (wait(&exit_status) != pid) {
+        printf("%s: wait failed!\n", test_name);
     }
-    if (xstatus != 0) {
-        printf("%s: nonzero wait status %d\n", s, xstatus);
+    if (exit_status != 0) {
+        printf("%s: nonzero wait status %d\n", test_name, exit_status);
         exit(1);
     }
 
     fd = open("echo-ok", O_RDONLY);
     if (fd < 0) {
-        printf("%s: open failed\n", s);
+        printf("%s: open failed\n", test_name);
         exit(1);
     }
-    if (read(fd, buf, 2) != 2) {
-        printf("%s: read failed\n", s);
+    if (read(fd, buffer, 2) != 2) {
+        printf("%s: read failed\n", test_name);
         exit(1);
     }
     unlink("echo-ok");
-    if (buf[0] == 'O' && buf[1] == 'K')
+    if (buffer[0] == 'O' && buffer[1] == 'K')
         exit(0);
     else {
-        printf("%s: wrong output\n", s);
+        printf("%s: wrong output\n", test_name);
         exit(1);
     }
 }
 
 // 単純なforkとパイプの読み書き
 
-void pipe1(char *s)
+void pipe1(char *test_name)
 {
-    int fds[2], pid, xstatus;
-    int seq, i, n, cc, total;
+    int pipe_fds[2], pid, exit_status;
+    int sequence_number, i, chunk_index, bytes_read, requested_size;
+    int total_bytes;
     enum { N = 5, SZ = 1033 };
 
-    if (pipe(fds) != 0) {
-        printf("%s: pipe() failed\n", s);
+    if (pipe(pipe_fds) != 0) {
+        printf("%s: pipe() failed\n", test_name);
         exit(1);
     }
     pid = fork();
-    seq = 0;
+    sequence_number = 0;
     if (pid == 0) {
-        close(fds[0]);
-        for (n = 0; n < N; n++) {
+        close(pipe_fds[0]);
+        for (chunk_index = 0; chunk_index < N; chunk_index++) {
             for (i = 0; i < SZ; i++)
-                buf[i] = seq++;
-            if (write(fds[1], buf, SZ) != SZ) {
-                printf("%s: pipe1 oops 1\n", s);
+                buffer[i] = sequence_number++;
+            if (write(pipe_fds[1], buffer, SZ) != SZ) {
+                printf("%s: pipe1 oops 1\n", test_name);
                 exit(1);
             }
         }
         exit(0);
     } else if (pid > 0) {
-        close(fds[1]);
-        total = 0;
-        cc = 1;
-        while ((n = read(fds[0], buf, cc)) > 0) {
-            for (i = 0; i < n; i++) {
-                if ((buf[i] & 0xff) != (seq++ & 0xff)) {
-                    printf("%s: pipe1 oops 2\n", s);
+        close(pipe_fds[1]);
+        total_bytes = 0;
+        requested_size = 1;
+        while ((bytes_read =
+                    read(pipe_fds[0], buffer, requested_size)) > 0) {
+            for (i = 0; i < bytes_read; i++) {
+                if ((buffer[i] & 0xff) !=
+                    (sequence_number++ & 0xff)) {
+                    printf("%s: pipe1 oops 2\n", test_name);
                     return;
                 }
             }
-            total += n;
-            cc = cc * 2;
-            if (cc > sizeof(buf))
-                cc = sizeof(buf);
+            total_bytes += bytes_read;
+            requested_size = requested_size * 2;
+            if (requested_size > sizeof(buffer))
+                requested_size = sizeof(buffer);
         }
-        if (total != N * SZ) {
-            printf("%s: pipe1 oops 3 total %d\n", s, total);
+        if (total_bytes != N * SZ) {
+            printf("%s: pipe1 oops 3 total %d\n", test_name, total_bytes);
             exit(1);
         }
-        close(fds[0]);
-        wait(&xstatus);
-        exit(xstatus);
+        close(pipe_fds[0]);
+        wait(&exit_status);
+        exit(exit_status);
     } else {
-        printf("%s: fork() failed\n", s);
+        printf("%s: fork() failed\n", test_name);
         exit(1);
     }
 }
 
 // 子が終了対象になるかテストする（ステータス=-1）
-void killstatus(char *s)
+void killstatus(char *test_name)
 {
-    int xst;
+    int exit_status;
 
     for (int i = 0; i < 100; i++) {
         int pid1 = fork();
         if (pid1 < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
         if (pid1 == 0) {
@@ -795,9 +817,9 @@ void killstatus(char *s)
         }
         pause(1);
         kill(pid1);
-        wait(&xst);
-        if (xst != -1) {
-            printf("%s: status should be -1\n", s);
+        wait(&exit_status);
+        if (exit_status != -1) {
+            printf("%s: status should be -1\n", test_name);
             exit(1);
         }
     }
@@ -805,14 +827,14 @@ void killstatus(char *s)
 }
 
 // 最大2CPUで実行することを想定
-void preempt(char *s)
+void preempt(char *test_name)
 {
     int pid1, pid2, pid3;
-    int pfds[2];
+    int pipe_fds[2];
 
     pid1 = fork();
     if (pid1 < 0) {
-        printf("%s: fork failed", s);
+        printf("%s: fork failed", test_name);
         exit(1);
     }
     if (pid1 == 0)
@@ -821,34 +843,34 @@ void preempt(char *s)
 
     pid2 = fork();
     if (pid2 < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
     if (pid2 == 0)
         for (;;)
             ;
 
-    pipe(pfds);
+    pipe(pipe_fds);
     pid3 = fork();
     if (pid3 < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
     if (pid3 == 0) {
-        close(pfds[0]);
-        if (write(pfds[1], "x", 1) != 1)
-            printf("%s: preempt write error", s);
-        close(pfds[1]);
+        close(pipe_fds[0]);
+        if (write(pipe_fds[1], "x", 1) != 1)
+            printf("%s: preempt write error", test_name);
+        close(pipe_fds[1]);
         for (;;)
             ;
     }
 
-    close(pfds[1]);
-    if (read(pfds[0], buf, sizeof(buf)) != 1) {
-        printf("%s: preempt read error", s);
+    close(pipe_fds[1]);
+    if (read(pipe_fds[0], buffer, sizeof(buffer)) != 1) {
+        printf("%s: preempt read error", test_name);
         return;
     }
-    close(pfds[0]);
+    close(pipe_fds[0]);
     printf("kill... ");
     kill(pid1);
     kill(pid2);
@@ -860,24 +882,24 @@ void preempt(char *s)
 }
 
 // exitとwaitの間の競合を探す
-void exitwait(char *s)
+void exitwait(char *test_name)
 {
     int i, pid;
 
     for (i = 0; i < 100; i++) {
         pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
         if (pid) {
             int xstate;
             if (wait(&xstate) != pid) {
-                printf("%s: wait wrong pid\n", s);
+                printf("%s: wait wrong pid\n", test_name);
                 exit(1);
             }
             if (i != xstate) {
-                printf("%s: wait wrong exit status\n", s);
+                printf("%s: wait wrong exit status\n", test_name);
                 exit(1);
             }
         } else {
@@ -888,18 +910,18 @@ void exitwait(char *s)
 
 // 子が生きている親の終了を処理するreparentingコードで
 // 競合を探す。
-void reparent(char *s)
+void reparent(char *test_name)
 {
     int master_pid = getpid();
     for (int i = 0; i < 200; i++) {
         int pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
         if (pid) {
             if (wait(0) != pid) {
-                printf("%s: wait wrong pid\n", s);
+                printf("%s: wait wrong pid\n", test_name);
                 exit(1);
             }
         } else {
@@ -915,12 +937,12 @@ void reparent(char *s)
 }
 
 // 2つの子が同時にexit()したらどうなるか?
-void twochildren(char *s)
+void twochildren(char *test_name)
 {
     for (int i = 0; i < 1000; i++) {
         int pid1 = fork();
         if (pid1 < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
         if (pid1 == 0) {
@@ -928,7 +950,7 @@ void twochildren(char *s)
         } else {
             int pid2 = fork();
             if (pid2 < 0) {
-                printf("%s: fork failed\n", s);
+                printf("%s: fork failed\n", test_name);
                 exit(1);
             }
             if (pid2 == 0) {
@@ -942,14 +964,14 @@ void twochildren(char *s)
 }
 
 // 並行forkでロックのバグを見つけようとする。
-void forkfork(char *s)
+void forkfork(char *test_name)
 {
     enum { N = 2 };
 
     for (int i = 0; i < N; i++) {
         int pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed", s);
+            printf("%s: fork failed", test_name);
             exit(1);
         }
         if (pid == 0) {
@@ -967,23 +989,23 @@ void forkfork(char *s)
         }
     }
 
-    int xstatus;
+    int exit_status;
     for (int i = 0; i < N; i++) {
-        wait(&xstatus);
-        if (xstatus != 0) {
-            printf("%s: fork in child failed", s);
+        wait(&exit_status);
+        if (exit_status != 0) {
+            printf("%s: fork in child failed", test_name);
             exit(1);
         }
     }
 }
 
-void forkforkfork(char *s)
+void forkforkfork(char *test_name)
 {
     unlink("stopforking");
 
     int pid = fork();
     if (pid < 0) {
-        printf("%s: fork failed", s);
+        printf("%s: fork failed", test_name);
         exit(1);
     }
     if (pid == 0) {
@@ -1010,7 +1032,7 @@ void forkforkfork(char *s)
 // ロック順序に違反してexit()とinitのwait()がデッドロックしないか?
 // exit()が取得したものとは別のp->parent->lockを解放することで起きる
 // "panic: release"の再現にも使う。
-void reparent2(char *s)
+void reparent2(char *test_name)
 {
     for (int i = 0; i < 800; i++) {
         int pid1 = fork();
@@ -1030,38 +1052,38 @@ void reparent2(char *s)
 }
 
 // 全メモリを割り当て、解放し、再び割り当てる
-void mem(char *s)
+void mem(char *test_name)
 {
-    void *m1, *m2;
+    void *allocation_list, *allocation;
     int pid;
 
     if ((pid = fork()) == 0) {
-        m1 = 0;
-        while ((m2 = malloc(10001)) != 0) {
-            *(char **)m2 = m1;
-            m1 = m2;
+        allocation_list = 0;
+        while ((allocation = malloc(10001)) != 0) {
+            *(char **)allocation = allocation_list;
+            allocation_list = allocation;
         }
-        while (m1) {
-            m2 = *(char **)m1;
-            free(m1);
-            m1 = m2;
+        while (allocation_list) {
+            allocation = *(char **)allocation_list;
+            free(allocation_list);
+            allocation_list = allocation;
         }
-        m1 = malloc(1024 * 20);
-        if (m1 == 0) {
-            printf("%s: couldn't allocate mem?!!\n", s);
+        allocation_list = malloc(1024 * 20);
+        if (allocation_list == 0) {
+            printf("%s: couldn't allocate mem?!!\n", test_name);
             exit(1);
         }
-        free(m1);
+        free(allocation_list);
         exit(0);
     } else {
-        int xstatus;
-        wait(&xstatus);
-        if (xstatus == -1) {
+        int exit_status;
+        wait(&exit_status);
+        if (exit_status == -1) {
             // おそらくページフォルトなので、遅延割り当ての課題かもしれず、
             // 問題ない。
             exit(0);
         }
-        exit(xstatus);
+        exit(exit_status);
     }
 }
 
@@ -1069,90 +1091,90 @@ void mem(char *s)
 
 // 2つのプロセスが同じファイルディスクリプタへ書き込む。
 // オフセットは共有されるか? inodeロックは機能するか?
-void sharedfd(char *s)
+void sharedfd(char *test_name)
 {
-    int fd, pid, i, n, nc, np;
+    int fd, pid, i, bytes_read, child_byte_count, parent_byte_count;
     enum { N = 1000, SZ = 10 };
-    char buf[SZ];
+    char buffer[SZ];
 
     unlink("sharedfd");
     fd = open("sharedfd", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: cannot open sharedfd for writing", s);
+        printf("%s: cannot open sharedfd for writing", test_name);
         exit(1);
     }
     pid = fork();
-    memset(buf, pid == 0 ? 'c' : 'p', sizeof(buf));
+    memset(buffer, pid == 0 ? 'c' : 'p', sizeof(buffer));
     for (i = 0; i < N; i++) {
-        if (write(fd, buf, sizeof(buf)) != sizeof(buf)) {
-            printf("%s: write sharedfd failed\n", s);
+        if (write(fd, buffer, sizeof(buffer)) != sizeof(buffer)) {
+            printf("%s: write sharedfd failed\n", test_name);
             exit(1);
         }
     }
     if (pid == 0) {
         exit(0);
     } else {
-        int xstatus;
-        wait(&xstatus);
-        if (xstatus != 0)
-            exit(xstatus);
+        int exit_status;
+        wait(&exit_status);
+        if (exit_status != 0)
+            exit(exit_status);
     }
 
     close(fd);
     fd = open("sharedfd", 0);
     if (fd < 0) {
-        printf("%s: cannot open sharedfd for reading\n", s);
+        printf("%s: cannot open sharedfd for reading\n", test_name);
         exit(1);
     }
-    nc = np = 0;
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        for (i = 0; i < sizeof(buf); i++) {
-            if (buf[i] == 'c')
-                nc++;
-            if (buf[i] == 'p')
-                np++;
+    child_byte_count = parent_byte_count = 0;
+    while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) {
+        for (i = 0; i < sizeof(buffer); i++) {
+            if (buffer[i] == 'c')
+                child_byte_count++;
+            if (buffer[i] == 'p')
+                parent_byte_count++;
         }
     }
     close(fd);
     unlink("sharedfd");
-    if (nc == N * SZ && np == N * SZ) {
+    if (child_byte_count == N * SZ && parent_byte_count == N * SZ) {
         exit(0);
     } else {
-        printf("%s: nc/np test fails\n", s);
+        printf("%s: nc/np test fails\n", test_name);
         exit(1);
     }
 }
 
 // ブロック割り当てをテストするため、4つのプロセスが
 // 同時に異なるファイルへ書き込む。
-void fourfiles(char *s)
+void fourfiles(char *test_name)
 {
-    int fd, pid, i, j, n, total, pi;
+    int fd, pid, i, j, io_result, total_bytes, process_index;
     char *names[] = {"f0", "f1", "f2", "f3"};
-    char *fname;
+    char *file_name;
     enum { N = 12, NCHILD = 4, SZ = 500 };
 
-    for (pi = 0; pi < NCHILD; pi++) {
-        fname = names[pi];
-        unlink(fname);
+    for (process_index = 0; process_index < NCHILD; process_index++) {
+        file_name = names[process_index];
+        unlink(file_name);
 
         pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
 
         if (pid == 0) {
-            fd = open(fname, O_CREATE | O_RDWR);
+            fd = open(file_name, O_CREATE | O_RDWR);
             if (fd < 0) {
-                printf("%s: create failed\n", s);
+                printf("%s: create failed\n", test_name);
                 exit(1);
             }
 
-            memset(buf, '0' + pi, SZ);
+            memset(buffer, '0' + process_index, SZ);
             for (i = 0; i < N; i++) {
-                if ((n = write(fd, buf, SZ)) != SZ) {
-                    printf("write failed %d\n", n);
+                if ((io_result = write(fd, buffer, SZ)) != SZ) {
+                    printf("write failed %d\n", io_result);
                     exit(1);
                 }
             }
@@ -1160,64 +1182,64 @@ void fourfiles(char *s)
         }
     }
 
-    int xstatus;
-    for (pi = 0; pi < NCHILD; pi++) {
-        wait(&xstatus);
-        if (xstatus != 0)
-            exit(xstatus);
+    int exit_status;
+    for (process_index = 0; process_index < NCHILD; process_index++) {
+        wait(&exit_status);
+        if (exit_status != 0)
+            exit(exit_status);
     }
 
     for (i = 0; i < NCHILD; i++) {
-        fname = names[i];
-        fd = open(fname, 0);
-        total = 0;
-        while ((n = read(fd, buf, sizeof(buf))) > 0) {
-            for (j = 0; j < n; j++) {
-                if (buf[j] != '0' + i) {
-                    printf("%s: wrong char\n", s);
+        file_name = names[i];
+        fd = open(file_name, 0);
+        total_bytes = 0;
+        while ((io_result = read(fd, buffer, sizeof(buffer))) > 0) {
+            for (j = 0; j < io_result; j++) {
+                if (buffer[j] != '0' + i) {
+                    printf("%s: wrong char\n", test_name);
                     exit(1);
                 }
             }
-            total += n;
+            total_bytes += io_result;
         }
         close(fd);
-        if (total != N * SZ) {
-            printf("wrong length %d\n", total);
+        if (total_bytes != N * SZ) {
+            printf("wrong length %d\n", total_bytes);
             exit(1);
         }
-        unlink(fname);
+        unlink(file_name);
     }
 }
 
 // 4つのプロセスが同じディレクトリ内で異なるファイルを作成・削除する
-void createdelete(char *s)
+void createdelete(char *test_name)
 {
     enum { N = 20, NCHILD = 4 };
-    int pid, i, fd, pi;
+    int pid, i, fd, process_index;
     char name[32];
 
-    for (pi = 0; pi < NCHILD; pi++) {
+    for (process_index = 0; process_index < NCHILD; process_index++) {
         pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
 
         if (pid == 0) {
-            name[0] = 'p' + pi;
+            name[0] = 'p' + process_index;
             name[2] = '\0';
             for (i = 0; i < N; i++) {
                 name[1] = '0' + i;
                 fd = open(name, O_CREATE | O_RDWR);
                 if (fd < 0) {
-                    printf("%s: create failed\n", s);
+                    printf("%s: create failed\n", test_name);
                     exit(1);
                 }
                 close(fd);
                 if (i > 0 && (i % 2) == 0) {
                     name[1] = '0' + (i / 2);
                     if (unlink(name) < 0) {
-                        printf("%s: unlink failed\n", s);
+                        printf("%s: unlink failed\n", test_name);
                         exit(1);
                     }
                 }
@@ -1226,24 +1248,24 @@ void createdelete(char *s)
         }
     }
 
-    int xstatus;
-    for (pi = 0; pi < NCHILD; pi++) {
-        wait(&xstatus);
-        if (xstatus != 0)
+    int exit_status;
+    for (process_index = 0; process_index < NCHILD; process_index++) {
+        wait(&exit_status);
+        if (exit_status != 0)
             exit(1);
     }
 
     name[0] = name[1] = name[2] = 0;
     for (i = 0; i < N; i++) {
-        for (pi = 0; pi < NCHILD; pi++) {
-            name[0] = 'p' + pi;
+        for (process_index = 0; process_index < NCHILD; process_index++) {
+            name[0] = 'p' + process_index;
             name[1] = '0' + i;
             fd = open(name, 0);
             if ((i == 0 || i >= N / 2) && fd < 0) {
-                printf("%s: oops createdelete %s didn't exist\n", s, name);
+                printf("%s: oops createdelete %s didn't exist\n", test_name, name);
                 exit(1);
             } else if ((i >= 1 && i < N / 2) && fd >= 0) {
-                printf("%s: oops createdelete %s did exist\n", s, name);
+                printf("%s: oops createdelete %s did exist\n", test_name, name);
                 exit(1);
             }
             if (fd >= 0)
@@ -1252,8 +1274,8 @@ void createdelete(char *s)
     }
 
     for (i = 0; i < N; i++) {
-        for (pi = 0; pi < NCHILD; pi++) {
-            name[0] = 'p' + pi;
+        for (process_index = 0; process_index < NCHILD; process_index++) {
+            name[0] = 'p' + process_index;
             name[1] = '0' + i;
             unlink(name);
         }
@@ -1261,14 +1283,14 @@ void createdelete(char *s)
 }
 
 // ファイルのリンクを解除しても読み込めるか?
-void unlinkread(char *s)
+void unlinkread(char *test_name)
 {
     enum { SZ = 5 };
-    int fd, fd1;
+    int fd, replacement_fd;
 
     fd = open("unlinkread", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: create unlinkread failed\n", s);
+        printf("%s: create unlinkread failed\n", test_name);
         exit(1);
     }
     write(fd, "hello", SZ);
@@ -1276,35 +1298,35 @@ void unlinkread(char *s)
 
     fd = open("unlinkread", O_RDWR);
     if (fd < 0) {
-        printf("%s: open unlinkread failed\n", s);
+        printf("%s: open unlinkread failed\n", test_name);
         exit(1);
     }
     if (unlink("unlinkread") != 0) {
-        printf("%s: unlink unlinkread failed\n", s);
+        printf("%s: unlink unlinkread failed\n", test_name);
         exit(1);
     }
 
-    fd1 = open("unlinkread", O_CREATE | O_RDWR);
-    write(fd1, "yyy", 3);
-    close(fd1);
+    replacement_fd = open("unlinkread", O_CREATE | O_RDWR);
+    write(replacement_fd, "yyy", 3);
+    close(replacement_fd);
 
-    if (read(fd, buf, sizeof(buf)) != SZ) {
-        printf("%s: unlinkread read failed", s);
+    if (read(fd, buffer, sizeof(buffer)) != SZ) {
+        printf("%s: unlinkread read failed", test_name);
         exit(1);
     }
-    if (buf[0] != 'h') {
-        printf("%s: unlinkread wrong data\n", s);
+    if (buffer[0] != 'h') {
+        printf("%s: unlinkread wrong data\n", test_name);
         exit(1);
     }
-    if (write(fd, buf, 10) != 10) {
-        printf("%s: unlinkread write failed\n", s);
+    if (write(fd, buffer, 10) != 10) {
+        printf("%s: unlinkread write failed\n", test_name);
         exit(1);
     }
     close(fd);
     unlink("unlinkread");
 }
 
-void linktest(char *s)
+void linktest(char *test_name)
 {
     enum { SZ = 5 };
     int fd;
@@ -1314,65 +1336,65 @@ void linktest(char *s)
 
     fd = open("lf1", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: create lf1 failed\n", s);
+        printf("%s: create lf1 failed\n", test_name);
         exit(1);
     }
     if (write(fd, "hello", SZ) != SZ) {
-        printf("%s: write lf1 failed\n", s);
+        printf("%s: write lf1 failed\n", test_name);
         exit(1);
     }
     close(fd);
 
     if (link("lf1", "lf2") < 0) {
-        printf("%s: link lf1 lf2 failed\n", s);
+        printf("%s: link lf1 lf2 failed\n", test_name);
         exit(1);
     }
     unlink("lf1");
 
     if (open("lf1", 0) >= 0) {
-        printf("%s: unlinked lf1 but it is still there!\n", s);
+        printf("%s: unlinked lf1 but it is still there!\n", test_name);
         exit(1);
     }
 
     fd = open("lf2", 0);
     if (fd < 0) {
-        printf("%s: open lf2 failed\n", s);
+        printf("%s: open lf2 failed\n", test_name);
         exit(1);
     }
-    if (read(fd, buf, sizeof(buf)) != SZ) {
-        printf("%s: read lf2 failed\n", s);
+    if (read(fd, buffer, sizeof(buffer)) != SZ) {
+        printf("%s: read lf2 failed\n", test_name);
         exit(1);
     }
     close(fd);
 
     if (link("lf2", "lf2") >= 0) {
-        printf("%s: link lf2 lf2 succeeded! oops\n", s);
+        printf("%s: link lf2 lf2 succeeded! oops\n", test_name);
         exit(1);
     }
 
     unlink("lf2");
     if (link("lf2", "lf1") >= 0) {
-        printf("%s: link non-existent succeeded! oops\n", s);
+        printf("%s: link non-existent succeeded! oops\n", test_name);
         exit(1);
     }
 
     if (link(".", "lf1") >= 0) {
-        printf("%s: link . lf1 succeeded! oops\n", s);
+        printf("%s: link . lf1 succeeded! oops\n", test_name);
         exit(1);
     }
 }
 
 // 同じファイルに対するcreate/link/unlinkの並行実行をテストする
-void concreate(char *s)
+void concreate(char *test_name)
 {
     enum { N = 40 };
     char file[3];
-    int i, pid, n, fd;
-    char fa[N];
+    int i, pid, matching_file_count, fd;
+    char found_files[N];
     struct {
-        ushort inum;
+        ushort inode_number;
         char name[DIRSIZ];
-    } de;
+    } directory_entry;
 
     file[0] = 'C';
     file[2] = '\0';
@@ -1395,37 +1417,40 @@ void concreate(char *s)
         if (pid == 0) {
             exit(0);
         } else {
-            int xstatus;
-            wait(&xstatus);
-            if (xstatus != 0)
+            int exit_status;
+            wait(&exit_status);
+            if (exit_status != 0)
                 exit(1);
         }
     }
 
-    memset(fa, 0, sizeof(fa));
+    memset(found_files, 0, sizeof(found_files));
     fd = open(".", 0);
-    n = 0;
-    while (read(fd, &de, sizeof(de)) > 0) {
-        if (de.inum == 0)
+    matching_file_count = 0;
+    while (read(fd, &directory_entry, sizeof(directory_entry)) > 0) {
+        if (directory_entry.inode_number == 0)
             continue;
-        if (de.name[0] == 'C' && de.name[2] == '\0') {
-            i = de.name[1] - '0';
-            if (i < 0 || i >= sizeof(fa)) {
-                printf("%s: concreate weird file %s\n", s, de.name);
+        if (directory_entry.name[0] == 'C' &&
+            directory_entry.name[2] == '\0') {
+            i = directory_entry.name[1] - '0';
+            if (i < 0 || i >= sizeof(found_files)) {
+                printf("%s: concreate weird file %s\n", test_name,
+                       directory_entry.name);
                 exit(1);
             }
-            if (fa[i]) {
-                printf("%s: concreate duplicate file %s\n", s, de.name);
+            if (found_files[i]) {
+                printf("%s: concreate duplicate file %s\n", test_name,
+                       directory_entry.name);
                 exit(1);
             }
-            fa[i] = 1;
-            n++;
+            found_files[i] = 1;
+            matching_file_count++;
         }
     }
     close(fd);
 
-    if (n != N) {
-        printf("%s: concreate not enough files in directory listing\n", s);
+    if (matching_file_count != N) {
+        printf("%s: concreate not enough files in directory listing\n", test_name);
         exit(1);
     }
 
@@ -1433,7 +1458,7 @@ void concreate(char *s)
         file[1] = '0' + i;
         pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
         if (((i % 3) == 0 && pid == 0) || ((i % 3) == 1 && pid != 0)) {
@@ -1459,23 +1484,23 @@ void concreate(char *s)
 }
 
 // デッドロックを探すための、別の並行link/unlink/createテスト。
-void linkunlink(char *s)
+void linkunlink(char *test_name)
 {
     int pid, i;
 
     unlink("x");
     pid = fork();
     if (pid < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
 
-    unsigned int x = (pid ? 1 : 97);
+    unsigned int random_value = (pid ? 1 : 97);
     for (i = 0; i < 100; i++) {
-        x = x * 1103515245 + 12345;
-        if ((x % 3) == 0) {
+        random_value = random_value * 1103515245 + 12345;
+        if ((random_value % 3) == 0) {
             close(open("x", O_RDWR | O_CREATE));
-        } else if ((x % 3) == 1) {
+        } else if ((random_value % 3) == 1) {
             link("cat", "x");
         } else {
             unlink("x");
@@ -1488,37 +1513,37 @@ void linkunlink(char *s)
         exit(0);
 }
 
-void subdir(char *s)
+void subdir(char *test_name)
 {
-    int fd, cc;
+    int fd, bytes_read;
 
     unlink("ff");
     if (mkdir("dd") != 0) {
-        printf("%s: mkdir dd failed\n", s);
+        printf("%s: mkdir dd failed\n", test_name);
         exit(1);
     }
 
     fd = open("dd/ff", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: create dd/ff failed\n", s);
+        printf("%s: create dd/ff failed\n", test_name);
         exit(1);
     }
     write(fd, "ff", 2);
     close(fd);
 
     if (unlink("dd") >= 0) {
-        printf("%s: unlink dd (non-empty dir) succeeded!\n", s);
+        printf("%s: unlink dd (non-empty dir) succeeded!\n", test_name);
         exit(1);
     }
 
     if (mkdir("/dd/dd") != 0) {
-        printf("%s: subdir mkdir dd/dd failed\n", s);
+        printf("%s: subdir mkdir dd/dd failed\n", test_name);
         exit(1);
     }
 
     fd = open("dd/dd/ff", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: create dd/dd/ff failed\n", s);
+        printf("%s: create dd/dd/ff failed\n", test_name);
         exit(1);
     }
     write(fd, "FF", 2);
@@ -1526,163 +1551,165 @@ void subdir(char *s)
 
     fd = open("dd/dd/../ff", 0);
     if (fd < 0) {
-        printf("%s: open dd/dd/../ff failed\n", s);
+        printf("%s: open dd/dd/../ff failed\n", test_name);
         exit(1);
     }
-    cc = read(fd, buf, sizeof(buf));
-    if (cc != 2 || buf[0] != 'f') {
-        printf("%s: dd/dd/../ff wrong content\n", s);
+    bytes_read = read(fd, buffer, sizeof(buffer));
+    if (bytes_read != 2 || buffer[0] != 'f') {
+        printf("%s: dd/dd/../ff wrong content\n", test_name);
         exit(1);
     }
     close(fd);
 
     if (link("dd/dd/ff", "dd/dd/ffff") != 0) {
-        printf("%s: link dd/dd/ff dd/dd/ffff failed\n", s);
+        printf("%s: link dd/dd/ff dd/dd/ffff failed\n", test_name);
         exit(1);
     }
 
     if (unlink("dd/dd/ff") != 0) {
-        printf("%s: unlink dd/dd/ff failed\n", s);
+        printf("%s: unlink dd/dd/ff failed\n", test_name);
         exit(1);
     }
     if (open("dd/dd/ff", O_RDONLY) >= 0) {
-        printf("%s: open (unlinked) dd/dd/ff succeeded\n", s);
+        printf("%s: open (unlinked) dd/dd/ff succeeded\n", test_name);
         exit(1);
     }
 
     if (chdir("dd") != 0) {
-        printf("%s: chdir dd failed\n", s);
+        printf("%s: chdir dd failed\n", test_name);
         exit(1);
     }
     if (chdir("dd/../../dd") != 0) {
-        printf("%s: chdir dd/../../dd failed\n", s);
+        printf("%s: chdir dd/../../dd failed\n", test_name);
         exit(1);
     }
     if (chdir("dd/../../../dd") != 0) {
-        printf("%s: chdir dd/../../../dd failed\n", s);
+        printf("%s: chdir dd/../../../dd failed\n", test_name);
         exit(1);
     }
     if (chdir("./..") != 0) {
-        printf("%s: chdir ./.. failed\n", s);
+        printf("%s: chdir ./.. failed\n", test_name);
         exit(1);
     }
 
     fd = open("dd/dd/ffff", 0);
     if (fd < 0) {
-        printf("%s: open dd/dd/ffff failed\n", s);
+        printf("%s: open dd/dd/ffff failed\n", test_name);
         exit(1);
     }
-    if (read(fd, buf, sizeof(buf)) != 2) {
-        printf("%s: read dd/dd/ffff wrong len\n", s);
+    if (read(fd, buffer, sizeof(buffer)) != 2) {
+        printf("%s: read dd/dd/ffff wrong len\n", test_name);
         exit(1);
     }
     close(fd);
 
     if (open("dd/dd/ff", O_RDONLY) >= 0) {
-        printf("%s: open (unlinked) dd/dd/ff succeeded!\n", s);
+        printf("%s: open (unlinked) dd/dd/ff succeeded!\n", test_name);
         exit(1);
     }
 
     if (open("dd/ff/ff", O_CREATE | O_RDWR) >= 0) {
-        printf("%s: create dd/ff/ff succeeded!\n", s);
+        printf("%s: create dd/ff/ff succeeded!\n", test_name);
         exit(1);
     }
     if (open("dd/xx/ff", O_CREATE | O_RDWR) >= 0) {
-        printf("%s: create dd/xx/ff succeeded!\n", s);
+        printf("%s: create dd/xx/ff succeeded!\n", test_name);
         exit(1);
     }
     if (open("dd", O_CREATE) >= 0) {
-        printf("%s: create dd succeeded!\n", s);
+        printf("%s: create dd succeeded!\n", test_name);
         exit(1);
     }
     if (open("dd", O_RDWR) >= 0) {
-        printf("%s: open dd rdwr succeeded!\n", s);
+        printf("%s: open dd rdwr succeeded!\n", test_name);
         exit(1);
     }
     if (open("dd", O_WRONLY) >= 0) {
-        printf("%s: open dd wronly succeeded!\n", s);
+        printf("%s: open dd wronly succeeded!\n", test_name);
         exit(1);
     }
     if (link("dd/ff/ff", "dd/dd/xx") == 0) {
-        printf("%s: link dd/ff/ff dd/dd/xx succeeded!\n", s);
+        printf("%s: link dd/ff/ff dd/dd/xx succeeded!\n", test_name);
         exit(1);
     }
     if (link("dd/xx/ff", "dd/dd/xx") == 0) {
-        printf("%s: link dd/xx/ff dd/dd/xx succeeded!\n", s);
+        printf("%s: link dd/xx/ff dd/dd/xx succeeded!\n", test_name);
         exit(1);
     }
     if (link("dd/ff", "dd/dd/ffff") == 0) {
-        printf("%s: link dd/ff dd/dd/ffff succeeded!\n", s);
+        printf("%s: link dd/ff dd/dd/ffff succeeded!\n", test_name);
         exit(1);
     }
     if (mkdir("dd/ff/ff") == 0) {
-        printf("%s: mkdir dd/ff/ff succeeded!\n", s);
+        printf("%s: mkdir dd/ff/ff succeeded!\n", test_name);
         exit(1);
     }
     if (mkdir("dd/xx/ff") == 0) {
-        printf("%s: mkdir dd/xx/ff succeeded!\n", s);
+        printf("%s: mkdir dd/xx/ff succeeded!\n", test_name);
         exit(1);
     }
     if (mkdir("dd/dd/ffff") == 0) {
-        printf("%s: mkdir dd/dd/ffff succeeded!\n", s);
+        printf("%s: mkdir dd/dd/ffff succeeded!\n", test_name);
         exit(1);
     }
     if (unlink("dd/xx/ff") == 0) {
-        printf("%s: unlink dd/xx/ff succeeded!\n", s);
+        printf("%s: unlink dd/xx/ff succeeded!\n", test_name);
         exit(1);
     }
     if (unlink("dd/ff/ff") == 0) {
-        printf("%s: unlink dd/ff/ff succeeded!\n", s);
+        printf("%s: unlink dd/ff/ff succeeded!\n", test_name);
         exit(1);
     }
     if (chdir("dd/ff") == 0) {
-        printf("%s: chdir dd/ff succeeded!\n", s);
+        printf("%s: chdir dd/ff succeeded!\n", test_name);
         exit(1);
     }
     if (chdir("dd/xx") == 0) {
-        printf("%s: chdir dd/xx succeeded!\n", s);
+        printf("%s: chdir dd/xx succeeded!\n", test_name);
         exit(1);
     }
 
     if (unlink("dd/dd/ffff") != 0) {
-        printf("%s: unlink dd/dd/ff failed\n", s);
+        printf("%s: unlink dd/dd/ff failed\n", test_name);
         exit(1);
     }
     if (unlink("dd/ff") != 0) {
-        printf("%s: unlink dd/ff failed\n", s);
+        printf("%s: unlink dd/ff failed\n", test_name);
         exit(1);
     }
     if (unlink("dd") == 0) {
-        printf("%s: unlink non-empty dd succeeded!\n", s);
+        printf("%s: unlink non-empty dd succeeded!\n", test_name);
         exit(1);
     }
     if (unlink("dd/dd") < 0) {
-        printf("%s: unlink dd/dd failed\n", s);
+        printf("%s: unlink dd/dd failed\n", test_name);
         exit(1);
     }
     if (unlink("dd") < 0) {
-        printf("%s: unlink dd failed\n", s);
+        printf("%s: unlink dd failed\n", test_name);
         exit(1);
     }
 }
 
 // ログより大きい書き込みをテストする。
-void bigwrite(char *s)
+void bigwrite(char *test_name)
 {
-    int fd, sz;
+    int fd, write_size;
 
     unlink("bigwrite");
-    for (sz = 499; sz < (MAXOPBLOCKS + 2) * BSIZE; sz += 471) {
+    for (write_size = 499; write_size < (MAXOPBLOCKS + 2) * BSIZE;
+         write_size += 471) {
         fd = open("bigwrite", O_CREATE | O_RDWR);
         if (fd < 0) {
-            printf("%s: cannot create bigwrite\n", s);
+            printf("%s: cannot create bigwrite\n", test_name);
             exit(1);
         }
         int i;
         for (i = 0; i < 2; i++) {
-            int cc = write(fd, buf, sz);
-            if (cc != sz) {
-                printf("%s: write(%d) ret %d\n", s, sz, cc);
+            int bytes_written = write(fd, buffer, write_size);
+            if (bytes_written != write_size) {
+                printf("%s: write(%d) ret %d\n", test_name, write_size,
+                       bytes_written);
                 exit(1);
             }
         }
@@ -1691,21 +1718,21 @@ void bigwrite(char *s)
     }
 }
 
-void bigfile(char *s)
+void bigfile(char *test_name)
 {
     enum { N = 20, SZ = 600 };
-    int fd, i, total, cc;
+    int fd, i, total_bytes, bytes_read;
 
     unlink("bigfile.dat");
     fd = open("bigfile.dat", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: cannot create bigfile", s);
+        printf("%s: cannot create bigfile", test_name);
         exit(1);
     }
     for (i = 0; i < N; i++) {
-        memset(buf, i, SZ);
-        if (write(fd, buf, SZ) != SZ) {
-            printf("%s: write bigfile failed\n", s);
+        memset(buffer, i, SZ);
+        if (write(fd, buffer, SZ) != SZ) {
+            printf("%s: write bigfile failed\n", test_name);
             exit(1);
         }
     }
@@ -1713,72 +1740,72 @@ void bigfile(char *s)
 
     fd = open("bigfile.dat", 0);
     if (fd < 0) {
-        printf("%s: cannot open bigfile\n", s);
+        printf("%s: cannot open bigfile\n", test_name);
         exit(1);
     }
-    total = 0;
+    total_bytes = 0;
     for (i = 0;; i++) {
-        cc = read(fd, buf, SZ / 2);
-        if (cc < 0) {
-            printf("%s: read bigfile failed\n", s);
+        bytes_read = read(fd, buffer, SZ / 2);
+        if (bytes_read < 0) {
+            printf("%s: read bigfile failed\n", test_name);
             exit(1);
         }
-        if (cc == 0)
+        if (bytes_read == 0)
             break;
-        if (cc != SZ / 2) {
-            printf("%s: short read bigfile\n", s);
+        if (bytes_read != SZ / 2) {
+            printf("%s: short read bigfile\n", test_name);
             exit(1);
         }
-        if (buf[0] != i / 2 || buf[SZ / 2 - 1] != i / 2) {
-            printf("%s: read bigfile wrong data\n", s);
+        if (buffer[0] != i / 2 || buffer[SZ / 2 - 1] != i / 2) {
+            printf("%s: read bigfile wrong data\n", test_name);
             exit(1);
         }
-        total += cc;
+        total_bytes += bytes_read;
     }
     close(fd);
-    if (total != N * SZ) {
-        printf("%s: read bigfile wrong total\n", s);
+    if (total_bytes != N * SZ) {
+        printf("%s: read bigfile wrong total\n", test_name);
         exit(1);
     }
     unlink("bigfile.dat");
 }
 
-void fourteen(char *s)
+void fourteen(char *test_name)
 {
     int fd;
 
     // DIRSIZは14。
 
     if (mkdir("12345678901234") != 0) {
-        printf("%s: mkdir 12345678901234 failed\n", s);
+        printf("%s: mkdir 12345678901234 failed\n", test_name);
         exit(1);
     }
     if (mkdir("12345678901234/123456789012345") != 0) {
-        printf("%s: mkdir 12345678901234/123456789012345 failed\n", s);
+        printf("%s: mkdir 12345678901234/123456789012345 failed\n", test_name);
         exit(1);
     }
     fd = open("123456789012345/123456789012345/123456789012345", O_CREATE);
     if (fd < 0) {
         printf(
             "%s: create 123456789012345/123456789012345/123456789012345 failed\n",
-            s);
+            test_name);
         exit(1);
     }
     close(fd);
     fd = open("12345678901234/12345678901234/12345678901234", 0);
     if (fd < 0) {
         printf("%s: open 12345678901234/12345678901234/12345678901234 failed\n",
-               s);
+               test_name);
         exit(1);
     }
     close(fd);
 
     if (mkdir("12345678901234/12345678901234") == 0) {
-        printf("%s: mkdir 12345678901234/12345678901234 succeeded!\n", s);
+        printf("%s: mkdir 12345678901234/12345678901234 succeeded!\n", test_name);
         exit(1);
     }
     if (mkdir("123456789012345/12345678901234") == 0) {
-        printf("%s: mkdir 12345678901234/123456789012345 succeeded!\n", s);
+        printf("%s: mkdir 12345678901234/123456789012345 succeeded!\n", test_name);
         exit(1);
     }
 
@@ -1791,91 +1818,91 @@ void fourteen(char *s)
     unlink("12345678901234");
 }
 
-void rmdot(char *s)
+void rmdot(char *test_name)
 {
     if (mkdir("dots") != 0) {
-        printf("%s: mkdir dots failed\n", s);
+        printf("%s: mkdir dots failed\n", test_name);
         exit(1);
     }
     if (chdir("dots") != 0) {
-        printf("%s: chdir dots failed\n", s);
+        printf("%s: chdir dots failed\n", test_name);
         exit(1);
     }
     if (unlink(".") == 0) {
-        printf("%s: rm . worked!\n", s);
+        printf("%s: rm . worked!\n", test_name);
         exit(1);
     }
     if (unlink("..") == 0) {
-        printf("%s: rm .. worked!\n", s);
+        printf("%s: rm .. worked!\n", test_name);
         exit(1);
     }
     if (chdir("/") != 0) {
-        printf("%s: chdir / failed\n", s);
+        printf("%s: chdir / failed\n", test_name);
         exit(1);
     }
     if (unlink("dots/.") == 0) {
-        printf("%s: unlink dots/. worked!\n", s);
+        printf("%s: unlink dots/. worked!\n", test_name);
         exit(1);
     }
     if (unlink("dots/..") == 0) {
-        printf("%s: unlink dots/.. worked!\n", s);
+        printf("%s: unlink dots/.. worked!\n", test_name);
         exit(1);
     }
     if (unlink("dots") != 0) {
-        printf("%s: unlink dots failed!\n", s);
+        printf("%s: unlink dots failed!\n", test_name);
         exit(1);
     }
 }
 
-void dirfile(char *s)
+void dirfile(char *test_name)
 {
     int fd;
 
     fd = open("dirfile", O_CREATE);
     if (fd < 0) {
-        printf("%s: create dirfile failed\n", s);
+        printf("%s: create dirfile failed\n", test_name);
         exit(1);
     }
     close(fd);
     if (chdir("dirfile") == 0) {
-        printf("%s: chdir dirfile succeeded!\n", s);
+        printf("%s: chdir dirfile succeeded!\n", test_name);
         exit(1);
     }
     fd = open("dirfile/xx", 0);
     if (fd >= 0) {
-        printf("%s: create dirfile/xx succeeded!\n", s);
+        printf("%s: create dirfile/xx succeeded!\n", test_name);
         exit(1);
     }
     fd = open("dirfile/xx", O_CREATE);
     if (fd >= 0) {
-        printf("%s: create dirfile/xx succeeded!\n", s);
+        printf("%s: create dirfile/xx succeeded!\n", test_name);
         exit(1);
     }
     if (mkdir("dirfile/xx") == 0) {
-        printf("%s: mkdir dirfile/xx succeeded!\n", s);
+        printf("%s: mkdir dirfile/xx succeeded!\n", test_name);
         exit(1);
     }
     if (unlink("dirfile/xx") == 0) {
-        printf("%s: unlink dirfile/xx succeeded!\n", s);
+        printf("%s: unlink dirfile/xx succeeded!\n", test_name);
         exit(1);
     }
     if (link("README", "dirfile/xx") == 0) {
-        printf("%s: link to dirfile/xx succeeded!\n", s);
+        printf("%s: link to dirfile/xx succeeded!\n", test_name);
         exit(1);
     }
     if (unlink("dirfile") != 0) {
-        printf("%s: unlink dirfile failed!\n", s);
+        printf("%s: unlink dirfile failed!\n", test_name);
         exit(1);
     }
 
     fd = open(".", O_RDWR);
     if (fd >= 0) {
-        printf("%s: open . for writing succeeded!\n", s);
+        printf("%s: open . for writing succeeded!\n", test_name);
         exit(1);
     }
     fd = open(".", 0);
     if (write(fd, "x", 1) > 0) {
-        printf("%s: write . succeeded!\n", s);
+        printf("%s: write . succeeded!\n", test_name);
         exit(1);
     }
     close(fd);
@@ -1883,17 +1910,17 @@ void dirfile(char *s)
 
 // _namei()の最後にiput()が呼ばれることをテストする。
 // 空のファイル名もテストする。
-void iref(char *s)
+void iref(char *test_name)
 {
     int i, fd;
 
     for (i = 0; i < NINODE + 1; i++) {
         if (mkdir("irefd") != 0) {
-            printf("%s: mkdir irefd failed\n", s);
+            printf("%s: mkdir irefd failed\n", test_name);
             exit(1);
         }
         if (chdir("irefd") != 0) {
-            printf("%s: chdir irefd failed\n", s);
+            printf("%s: chdir irefd failed\n", test_name);
             exit(1);
         }
 
@@ -1920,12 +1947,12 @@ void iref(char *s)
 // forkが正常に失敗することをテストする。
 // forktestバイナリもこれを行うが、先にプロセス表を使い切る。
 // より大きなusertestsバイナリ内では、先にメモリを使い切る。
-void forktest(char *s)
+void forktest(char *test_name)
 {
     enum { N = 1000 };
-    int n, pid;
+    int child_count, pid;
 
-    for (n = 0; n < N; n++) {
+    for (child_count = 0; child_count < N; child_count++) {
         pid = fork();
         if (pid < 0)
             break;
@@ -1933,34 +1960,34 @@ void forktest(char *s)
             exit(0);
     }
 
-    if (n == 0) {
-        printf("%s: no fork at all!\n", s);
+    if (child_count == 0) {
+        printf("%s: no fork at all!\n", test_name);
         exit(1);
     }
 
-    if (n == N) {
-        printf("%s: fork claimed to work 1000 times!\n", s);
+    if (child_count == N) {
+        printf("%s: fork claimed to work 1000 times!\n", test_name);
         exit(1);
     }
 
-    for (; n > 0; n--) {
+    for (; child_count > 0; child_count--) {
         if (wait(0) < 0) {
-            printf("%s: wait stopped early\n", s);
+            printf("%s: wait stopped early\n", test_name);
             exit(1);
         }
     }
 
     if (wait(0) != -1) {
-        printf("%s: wait got too many\n", s);
+        printf("%s: wait got too many\n", test_name);
         exit(1);
     }
 }
 
-void sbrkbasic(char *s)
+void sbrkbasic(char *test_name)
 {
     enum { TOOMUCH = 1024 * 1024 * 1024 };
-    int i, pid, xstatus;
-    char *c, *a, *b;
+    int i, pid, exit_status;
+    char *current_break, *expected_break, *allocation;
 
     // sbrk()は期待した失敗値を返すか?
     pid = fork();
@@ -1969,14 +1996,16 @@ void sbrkbasic(char *s)
         exit(1);
     }
     if (pid == 0) {
-        a = sbrk(TOOMUCH);
-        if (a == (char *)SBRK_ERROR) {
+        expected_break = sbrk(TOOMUCH);
+        if (expected_break == (char *)SBRK_ERROR) {
             // これが失敗してもよい。
             exit(0);
         }
 
-        for (b = a; b < a + TOOMUCH; b += PGSIZE) {
-            *b = 99;
+        for (allocation = expected_break;
+             allocation < expected_break + TOOMUCH;
+             allocation += PGSIZE) {
+            *allocation = 99;
         }
 
         // ここには到達しないはず! sbrk(TOOMUCH)が失敗したか、
@@ -1985,253 +2014,261 @@ void sbrkbasic(char *s)
         exit(1);
     }
 
-    wait(&xstatus);
-    if (xstatus == 1) {
-        printf("%s: too much memory allocated!\n", s);
+    wait(&exit_status);
+    if (exit_status == 1) {
+        printf("%s: too much memory allocated!\n", test_name);
         exit(1);
     }
 
     // 1ページ未満のsbrk()は可能か?
-    a = sbrk(0);
+    expected_break = sbrk(0);
     for (i = 0; i < 5000; i++) {
-        b = sbrk(1);
-        if (b != a) {
-            printf("%s: sbrk test failed %d %p %p\n", s, i, a, b);
+        allocation = sbrk(1);
+        if (allocation != expected_break) {
+            printf("%s: sbrk test failed %d %p %p\n", test_name, i,
+                   expected_break, allocation);
             exit(1);
         }
-        *b = 1;
-        a = b + 1;
+        *allocation = 1;
+        expected_break = allocation + 1;
     }
     pid = fork();
     if (pid < 0) {
-        printf("%s: sbrk test fork failed\n", s);
+        printf("%s: sbrk test fork failed\n", test_name);
         exit(1);
     }
-    c = sbrk(1);
-    c = sbrk(1);
-    if (c != a + 1) {
-        printf("%s: sbrk test failed post-fork\n", s);
+    current_break = sbrk(1);
+    current_break = sbrk(1);
+    if (current_break != expected_break + 1) {
+        printf("%s: sbrk test failed post-fork\n", test_name);
         exit(1);
     }
     if (pid == 0)
         exit(0);
-    wait(&xstatus);
-    exit(xstatus);
+    wait(&exit_status);
+    exit(exit_status);
 }
 
-void sbrkmuch(char *s)
+void sbrkmuch(char *test_name)
 {
     enum { BIG = 100 * 1024 * 1024 };
-    char *c, *oldbrk, *a, *lastaddr, *p;
-    uint64 amt;
+    char *returned_break, *initial_break, *previous_break, *last_address;
+    char *allocation_start;
+    uint64 allocation_size;
 
-    oldbrk = sbrk(0);
+    initial_break = sbrk(0);
 
     // アドレス空間を大きく拡張できるか?
-    a = sbrk(0);
-    amt = BIG - (uint64)a;
-    p = sbrk(amt);
-    if (p != a) {
+    previous_break = sbrk(0);
+    allocation_size = BIG - (uint64)previous_break;
+    allocation_start = sbrk(allocation_size);
+    if (allocation_start != previous_break) {
         printf(
             "%s: sbrk test failed to grow big address space; enough phys mem?\n",
-            s);
+            test_name);
         exit(1);
     }
 
-    lastaddr = (char *)(BIG - 1);
-    *lastaddr = 99;
+    last_address = (char *)(BIG - 1);
+    *last_address = 99;
 
     // 割り当てを解除できるか?
-    a = sbrk(0);
-    c = sbrk(-PGSIZE);
-    if (c == (char *)SBRK_ERROR) {
-        printf("%s: sbrk could not deallocate\n", s);
+    previous_break = sbrk(0);
+    returned_break = sbrk(-PGSIZE);
+    if (returned_break == (char *)SBRK_ERROR) {
+        printf("%s: sbrk could not deallocate\n", test_name);
         exit(1);
     }
-    c = sbrk(0);
-    if (c != a - PGSIZE) {
-        printf("%s: sbrk deallocation produced wrong address, a %p c %p\n", s,
-               a, c);
+    returned_break = sbrk(0);
+    if (returned_break != previous_break - PGSIZE) {
+        printf("%s: sbrk deallocation produced wrong address, a %p c %p\n",
+               test_name, previous_break, returned_break);
         exit(1);
     }
 
     // そのページを再割り当てできるか?
-    a = sbrk(0);
-    c = sbrk(PGSIZE);
-    if (c != a || sbrk(0) != a + PGSIZE) {
-        printf("%s: sbrk re-allocation failed, a %p c %p\n", s, a, c);
+    previous_break = sbrk(0);
+    returned_break = sbrk(PGSIZE);
+    if (returned_break != previous_break ||
+        sbrk(0) != previous_break + PGSIZE) {
+        printf("%s: sbrk re-allocation failed, a %p c %p\n", test_name,
+               previous_break, returned_break);
         exit(1);
     }
-    if (*lastaddr == 99) {
+    if (*last_address == 99) {
         // 0であるべき
-        printf("%s: sbrk de-allocation didn't really deallocate\n", s);
+        printf("%s: sbrk de-allocation didn't really deallocate\n", test_name);
         exit(1);
     }
 
-    a = sbrk(0);
-    c = sbrk(-(sbrk(0) - oldbrk));
-    if (c != a) {
-        printf("%s: sbrk downsize failed, a %p c %p\n", s, a, c);
+    previous_break = sbrk(0);
+    returned_break = sbrk(-(sbrk(0) - initial_break));
+    if (returned_break != previous_break) {
+        printf("%s: sbrk downsize failed, a %p c %p\n", test_name,
+               previous_break, returned_break);
         exit(1);
     }
 }
 
 // カーネルのメモリを読み込めるか?
-void kernmem(char *s)
+void kernmem(char *test_name)
 {
-    char *a;
+    char *address;
     int pid;
 
-    for (a = (char *)(KERNBASE); a < (char *)(KERNBASE + 2000000); a += 50000) {
+    for (address = (char *)(KERNBASE);
+         address < (char *)(KERNBASE + 2000000); address += 50000) {
         pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
         if (pid == 0) {
-            printf("%s: oops could read %p = %x\n", s, a, *a);
+            printf("%s: oops could read %p = %x\n", test_name, address,
+                   *address);
             exit(1);
         }
-        int xstatus;
-        wait(&xstatus);
-        if (xstatus != -1) // カーネルは子を終了させたか?
+        int exit_status;
+        wait(&exit_status);
+        if (exit_status != -1) // カーネルは子を終了させたか?
             exit(1);
     }
 }
 
 // ユーザコードはMAXVAより上のアドレスへ書けないはず。
-void MAXVAplus(char *s)
+void maxva_plus(char *test_name)
 {
-    volatile uint64 a = MAXVA;
-    for (; a != 0; a <<= 1) {
+    volatile uint64 address = MAXVA;
+    for (; address != 0; address <<= 1) {
         int pid;
         pid = fork();
         if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
         if (pid == 0) {
-            *(char *)a = 99;
-            printf("%s: oops wrote %p\n", s, (void *)a);
+            *(char *)address = 99;
+            printf("%s: oops wrote %p\n", test_name, (void *)address);
             exit(1);
         }
-        int xstatus;
-        wait(&xstatus);
-        if (xstatus != -1) // カーネルは子を終了させたか?
+        int exit_status;
+        wait(&exit_status);
+        if (exit_status != -1) // カーネルは子を終了させたか?
             exit(1);
     }
 }
 
 // システムのメモリを使い切ったとき、最後の失敗した割り当てを
 // 後片付けするか?
-void sbrkfail(char *s)
+void sbrkfail(char *test_name)
 {
     enum { BIG = 100 * 1024 * 1024 };
-    int i, xstatus;
-    int fds[2];
+    int i, exit_status;
+    int pipe_fds[2];
     char scratch;
-    char *c, *a;
-    int pids[10];
+    char *recovered_page, *allocation;
+    int child_pids[10];
     int pid;
-    int failed;
+    int allocation_failed;
 
-    failed = 0;
-    if (pipe(fds) != 0) {
-        printf("%s: pipe() failed\n", s);
+    allocation_failed = 0;
+    if (pipe(pipe_fds) != 0) {
+        printf("%s: pipe() failed\n", test_name);
         exit(1);
     }
-    for (i = 0; i < sizeof(pids) / sizeof(pids[0]); i++) {
-        if ((pids[i] = fork()) == 0) {
+    for (i = 0; i < sizeof(child_pids) / sizeof(child_pids[0]); i++) {
+        if ((child_pids[i] = fork()) == 0) {
             // 大量のメモリを割り当てる
             if (sbrk(BIG - (uint64)sbrk(0)) == (char *)SBRK_ERROR)
-                write(fds[1], "0", 1);
+                write(pipe_fds[1], "0", 1);
             else
-                write(fds[1], "1", 1);
+                write(pipe_fds[1], "1", 1);
             // 終了させられるまで待機する
             for (;;)
                 pause(1000);
         }
-        if (pids[i] != -1) {
-            read(fds[0], &scratch, 1);
+        if (child_pids[i] != -1) {
+            read(pipe_fds[0], &scratch, 1);
             if (scratch == '0')
-                failed = 1;
+                allocation_failed = 1;
         }
     }
-    if (!failed) {
-        printf("%s: no allocation failed; allocate more?\n", s);
+    if (!allocation_failed) {
+        printf("%s: no allocation failed; allocate more?\n", test_name);
     }
 
     // 失敗した割り当てが割り当て済みページを解放していれば、
     // ここで割り当てられるはず
-    c = sbrk(PGSIZE);
-    for (i = 0; i < sizeof(pids) / sizeof(pids[0]); i++) {
-        if (pids[i] == -1)
+    recovered_page = sbrk(PGSIZE);
+    for (i = 0; i < sizeof(child_pids) / sizeof(child_pids[0]); i++) {
+        if (child_pids[i] == -1)
             continue;
-        kill(pids[i]);
+        kill(child_pids[i]);
         wait(0);
     }
-    if (c == (char *)SBRK_ERROR) {
-        printf("%s: failed sbrk leaked memory\n", s);
+    if (recovered_page == (char *)SBRK_ERROR) {
+        printf("%s: failed sbrk leaked memory\n", test_name);
         exit(1);
     }
 
     // 上で割り当てたページがある状態でforkを実行するテスト
     pid = fork();
     if (pid < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
     if (pid == 0) {
         // 大量のメモリを割り当てる。エラーになるはず
-        a = sbrk(10 * BIG);
-        if (a == (char *)SBRK_ERROR) {
+        allocation = sbrk(10 * BIG);
+        if (allocation == (char *)SBRK_ERROR) {
             exit(0);
         }
-        printf("%s: allocate a lot of memory succeeded %d\n", s, 10 * BIG);
+        printf("%s: allocate a lot of memory succeeded %d\n", test_name, 10 * BIG);
         exit(1);
     }
-    wait(&xstatus);
-    if (xstatus != 0)
+    wait(&exit_status);
+    if (exit_status != 0)
         exit(1);
 }
 
 // 割り当てたメモリの読み書きをテストする
-void sbrkarg(char *s)
+void sbrkarg(char *test_name)
 {
-    char *a;
-    int fd, n;
+    char *allocation;
+    int fd, bytes_written;
 
-    a = sbrk(PGSIZE);
+    allocation = sbrk(PGSIZE);
     fd = open("sbrk", O_CREATE | O_WRONLY);
     unlink("sbrk");
     if (fd < 0) {
-        printf("%s: open sbrk failed\n", s);
+        printf("%s: open sbrk failed\n", test_name);
         exit(1);
     }
-    if ((n = write(fd, a, PGSIZE)) < 0) {
-        printf("%s: write sbrk failed\n", s);
+    if ((bytes_written = write(fd, allocation, PGSIZE)) < 0) {
+        printf("%s: write sbrk failed\n", test_name);
         exit(1);
     }
     close(fd);
 
     // 割り当てたメモリへの書き込みをテストする
-    a = sbrk(PGSIZE);
-    if (pipe((int *)a) != 0) {
-        printf("%s: pipe() failed\n", s);
+    allocation = sbrk(PGSIZE);
+    if (pipe((int *)allocation) != 0) {
+        printf("%s: pipe() failed\n", test_name);
         exit(1);
     }
 }
 
-void validatetest(char *s)
+void validatetest(char *test_name)
 {
-    int hi;
-    uint64 p;
+    int highest_address;
+    uint64 address;
 
-    hi = 1100 * 1024;
-    for (p = 0; p <= (uint)hi; p += PGSIZE) {
+    highest_address = 1100 * 1024;
+    for (address = 0; address <= (uint)highest_address;
+         address += PGSIZE) {
         // 不正な文字列ポインタを渡してカーネルをクラッシュさせようとする
-        if (link("nosuchfile", (char *)p) != -1) {
-            printf("%s: link should not succeed\n", s);
+        if (link("nosuchfile", (char *)address) != -1) {
+            printf("%s: link should not succeed\n", test_name);
             exit(1);
         }
     }
@@ -2239,13 +2276,13 @@ void validatetest(char *s)
 
 // 初期化されていないデータは最初から0か?
 char uninit[10000];
-void bsstest(char *s)
+void bsstest(char *test_name)
 {
     int i;
 
     for (i = 0; i < sizeof(uninit); i++) {
         if (uninit[i] != '\0') {
-            printf("%s: bss test failed\n", s);
+            printf("%s: bss test failed\n", test_name);
             exit(1);
         }
     }
@@ -2253,9 +2290,9 @@ void bsstest(char *s)
 
 // 引数が1ページより大きい場合、execはエラーを返すか?
 // それともスタックより下へ書き込み、命令やデータを壊すか?
-void bigargtest(char *s)
+void bigargtest(char *test_name)
 {
-    int pid, fd, xstatus;
+    int pid, fd, exit_status;
 
     unlink("bigarg-ok");
     pid = fork();
@@ -2274,16 +2311,16 @@ void bigargtest(char *s)
         close(fd);
         exit(0);
     } else if (pid < 0) {
-        printf("%s: bigargtest: fork failed\n", s);
+        printf("%s: bigargtest: fork failed\n", test_name);
         exit(1);
     }
 
-    wait(&xstatus);
-    if (xstatus != 0)
-        exit(xstatus);
+    wait(&exit_status);
+    if (exit_status != 0)
+        exit(exit_status);
     fd = open("bigarg-ok", 0);
     if (fd < 0) {
-        printf("%s: bigarg test failed!\n", s);
+        printf("%s: bigarg test failed!\n", test_name);
         exit(1);
     }
     close(fd);
@@ -2291,20 +2328,20 @@ void bigargtest(char *s)
 
 // ファイルシステムのブロックが尽きるとどうなるか?
 // 答え: ballocがpanicするため、このテストは役に立たない。
-void fsfull()
+void fsfull(void)
 {
-    int nfiles;
-    int fsblocks = 0;
+    int file_count;
+    int file_system_block_count = 0;
 
     printf("fsfull test\n");
 
-    for (nfiles = 0;; nfiles++) {
+    for (file_count = 0;; file_count++) {
         char name[64];
         name[0] = 'f';
-        name[1] = '0' + nfiles / 1000;
-        name[2] = '0' + (nfiles % 1000) / 100;
-        name[3] = '0' + (nfiles % 100) / 10;
-        name[4] = '0' + (nfiles % 10);
+        name[1] = '0' + file_count / 1000;
+        name[2] = '0' + (file_count % 1000) / 100;
+        name[3] = '0' + (file_count % 100) / 10;
+        name[4] = '0' + (file_count % 10);
         name[5] = '\0';
         printf("writing %s\n", name);
         int fd = open(name, O_CREATE | O_RDWR);
@@ -2312,41 +2349,41 @@ void fsfull()
             printf("open %s failed\n", name);
             break;
         }
-        int total = 0;
+        int total_bytes = 0;
         while (1) {
-            int cc = write(fd, buf, BSIZE);
-            if (cc < BSIZE)
+            int bytes_written = write(fd, buffer, BSIZE);
+            if (bytes_written < BSIZE)
                 break;
-            total += cc;
-            fsblocks++;
+            total_bytes += bytes_written;
+            file_system_block_count++;
         }
-        printf("wrote %d bytes\n", total);
+        printf("wrote %d bytes\n", total_bytes);
         close(fd);
-        if (total == 0)
+        if (total_bytes == 0)
             break;
     }
 
-    while (nfiles >= 0) {
+    while (file_count >= 0) {
         char name[64];
         name[0] = 'f';
-        name[1] = '0' + nfiles / 1000;
-        name[2] = '0' + (nfiles % 1000) / 100;
-        name[3] = '0' + (nfiles % 100) / 10;
-        name[4] = '0' + (nfiles % 10);
+        name[1] = '0' + file_count / 1000;
+        name[2] = '0' + (file_count % 1000) / 100;
+        name[3] = '0' + (file_count % 100) / 10;
+        name[4] = '0' + (file_count % 10);
         name[5] = '\0';
         unlink(name);
-        nfiles--;
+        file_count--;
     }
 
-    printf("fsfull test finished, %d blocks\n", fsblocks);
+    printf("fsfull test finished, %d blocks\n", file_system_block_count);
 }
 
-void argptest(char *s)
+void argptest(char *test_name)
 {
     int fd;
     fd = open("init", O_RDONLY);
     if (fd < 0) {
-        printf("%s: open failed\n", s);
+        printf("%s: open failed\n", test_name);
         exit(1);
     }
     read(fd, sbrk(0) - 1, -1);
@@ -2355,55 +2392,60 @@ void argptest(char *s)
 
 // スタックオーバーフローを検出するため、ユーザスタックの下に
 // 無効なページがあることを確認する。
-void stacktest(char *s)
+void stacktest(char *test_name)
 {
     int pid;
-    int xstatus;
+    int exit_status;
 
     pid = fork();
     if (pid == 0) {
-        char *sp = (char *)r_sp();
-        sp -= USERSTACK * PGSIZE;
-        // *spでトラップが発生するはず。
-        printf("%s: stacktest: read below stack %d\n", s, *sp);
+        char *stack_pointer = (char *)r_sp();
+        stack_pointer -= USERSTACK * PGSIZE;
+        // *stack_pointerでトラップが発生するはず。
+        printf("%s: stacktest: read below stack %d\n", test_name,
+               *stack_pointer);
         exit(1);
     } else if (pid < 0) {
-        printf("%s: fork failed\n", s);
+        printf("%s: fork failed\n", test_name);
         exit(1);
     }
-    wait(&xstatus);
-    if (xstatus == -1) // カーネルは子を終了させたか?
+    wait(&exit_status);
+    if (exit_status == -1) // カーネルは子を終了させたか?
         exit(0);
     else
-        exit(xstatus);
+        exit(exit_status);
 }
 
 // いくつかの禁止アドレス（プロセスのテキストやTRAMPOLINEなど）への
 // 書き込みでフォルトが発生することを確認する。
-void nowrite(char *s)
+void nowrite(char *test_name)
 {
     int pid;
-    int xstatus;
-    uint64 addrs[] = {0,
-                      0x80000000LL,
-                      0x3fffffe000,
-                      0x3ffffff000,
-                      0x4000000000,
-                      0xffffffffffffffff};
+    int exit_status;
+    uint64 forbidden_addresses[] = {0,
+                                    0x80000000LL,
+                                    0x3fffffe000,
+                                    0x3ffffff000,
+                                    0x4000000000,
+                                    0xffffffffffffffff};
 
-    for (int ai = 0; ai < sizeof(addrs) / sizeof(addrs[0]); ai++) {
+    for (int address_index = 0;
+         address_index < sizeof(forbidden_addresses) /
+                             sizeof(forbidden_addresses[0]);
+         address_index++) {
         pid = fork();
         if (pid == 0) {
-            volatile int *addr = (int *)addrs[ai];
-            *addr = 10;
-            printf("%s: write to %p did not fail!\n", s, addr);
+            volatile int *address =
+                (int *)forbidden_addresses[address_index];
+            *address = 10;
+            printf("%s: write to %p did not fail!\n", test_name, address);
             exit(0);
         } else if (pid < 0) {
-            printf("%s: fork failed\n", s);
+            printf("%s: fork failed\n", test_name);
             exit(1);
         }
-        wait(&xstatus);
-        if (xstatus == 0) {
+        wait(&exit_status);
+        if (exit_status == 0) {
             // カーネルが子を終了させなかった!
             exit(1);
         }
@@ -2415,7 +2457,7 @@ void nowrite(char *s)
 // uintへキャストしていたため、（特定の異常なシステムコール引数で）
 // カーネルページフォルトが発生していた。
 void *big = (void *)0xeaeb0b5b00002f5e;
-void pgbug(char *s)
+void pgbug(char *test_name)
 {
     char *argv[1];
     argv[0] = 0;
@@ -2427,7 +2469,7 @@ void pgbug(char *s)
 
 // 回帰テスト。プロセスがsbrk()でサイズを1ページ未満または0にしたり、
 // ページ解放に足りない量だけブレークを減らしたりすると、カーネルはpanicするか?
-void sbrkbugs(char *s)
+void sbrkbugs(char *test_name)
 {
     int pid = fork();
     if (pid < 0) {
@@ -2435,10 +2477,10 @@ void sbrkbugs(char *s)
         exit(1);
     }
     if (pid == 0) {
-        int sz = (uint64)sbrk(0);
+        int process_size = (uint64)sbrk(0);
         // すべてのユーザメモリを解放する。この場合にp->szを正しく
         // 調整しないバグがあり、exit()がpanicしていた。
-        sbrk(-sz);
+        sbrk(-process_size);
         // ここでユーザページフォルトが発生する。
         exit(0);
     }
@@ -2450,10 +2492,10 @@ void sbrkbugs(char *s)
         exit(1);
     }
     if (pid == 0) {
-        int sz = (uint64)sbrk(0);
+        int process_size = (uint64)sbrk(0);
         // ブレークを最初のページ内に設定する。以前は最初のページを
         // 誤って解放するバグがあった。
-        sbrk(-(sz - 3500));
+        sbrk(-(process_size - 3500));
         exit(0);
     }
     wait(0);
@@ -2480,7 +2522,7 @@ void sbrkbugs(char *s)
 
 // プロセスサイズがページ境界を少し超えた後、そのページ境界を少し下回るまで
 // 縮小されても、カーネルは最後のページのアドレスからcopyin()できるか?
-void sbrklast(char *s)
+void sbrklast(char *test_name)
 {
     uint64 top = (uint64)sbrk(0);
     if ((top % PGSIZE) != 0)
@@ -2489,21 +2531,21 @@ void sbrklast(char *s)
     sbrk(10);
     sbrk(-20);
     top = (uint64)sbrk(0);
-    char *p = (char *)(top - 64);
-    p[0] = 'x';
-    p[1] = '\0';
-    int fd = open(p, O_RDWR | O_CREATE);
-    write(fd, p, 1);
+    char *path_buffer = (char *)(top - 64);
+    path_buffer[0] = 'x';
+    path_buffer[1] = '\0';
+    int fd = open(path_buffer, O_RDWR | O_CREATE);
+    write(fd, path_buffer, 1);
     close(fd);
-    fd = open(p, O_RDWR);
-    p[0] = '\0';
-    read(fd, p, 1);
-    if (p[0] != 'x')
+    fd = open(path_buffer, O_RDWR);
+    path_buffer[0] = '\0';
+    read(fd, path_buffer, 1);
+    if (path_buffer[0] != 'x')
         exit(1);
 }
 
 // sbrkは負の引数による符号付きint32のラップアラウンドを処理できるか?
-void sbrk8000(char *s)
+void sbrk8000(char *test_name)
 {
     sbrk(0x80000004);
     volatile char *top = sbrk(0);
@@ -2512,7 +2554,7 @@ void sbrk8000(char *s)
 
 // 回帰テスト。引数の1つが無効な場合にexec()がメモリをリークするかテストする。
 // カーネルがpanicしなければテストは成功である。
-void badarg(char *s)
+void badarg(char *test_name)
 {
     for (int i = 0; i < 50000; i++) {
         char *argv[2];
@@ -2528,22 +2570,24 @@ void badarg(char *s)
 
 // 64ページごとに1ページへアクセスする。遅延割り当てでは
 // 1ページが割り当てられる。
-void lazy_alloc(char *s)
+void lazy_alloc(char *test_name)
 {
-    char *i, *prev_end, *new_end;
+    char *cursor, *region_start, *region_end;
 
-    prev_end = sbrklazy(REGION_SZ);
-    if (prev_end == (char *)SBRK_ERROR) {
+    region_start = sbrklazy(REGION_SZ);
+    if (region_start == (char *)SBRK_ERROR) {
         printf("sbrklazy() failed\n");
         exit(1);
     }
-    new_end = prev_end + REGION_SZ;
+    region_end = region_start + REGION_SZ;
 
-    for (i = prev_end + PGSIZE; i < new_end; i += 64 * PGSIZE)
-        *(char **)i = i;
+    for (cursor = region_start + PGSIZE; cursor < region_end;
+         cursor += 64 * PGSIZE)
+        *(char **)cursor = cursor;
 
-    for (i = prev_end + PGSIZE; i < new_end; i += 64 * PGSIZE) {
-        if (*(char **)i != i) {
+    for (cursor = region_start + PGSIZE; cursor < region_end;
+         cursor += 64 * PGSIZE) {
+        if (*(char **)cursor != cursor) {
             printf("failed to read value from memory\n");
             exit(1);
         }
@@ -2555,34 +2599,36 @@ void lazy_alloc(char *s)
 // 領域内で64ページごとに1ページへアクセスする。遅延割り当てでは
 // 1ページが割り当てられる。領域を解放すると割り当て済みページも
 // 解放されることを確認する。
-void lazy_unmap(char *s)
+void lazy_unmap(char *test_name)
 {
     int pid;
-    char *i, *prev_end, *new_end;
+    char *cursor, *region_start, *region_end;
 
-    prev_end = sbrklazy(REGION_SZ);
-    if (prev_end == (char *)SBRK_ERROR) {
+    region_start = sbrklazy(REGION_SZ);
+    if (region_start == (char *)SBRK_ERROR) {
         printf("sbrklazy() failed\n");
         exit(1);
     }
-    new_end = prev_end + REGION_SZ;
+    region_end = region_start + REGION_SZ;
 
-    for (i = prev_end + PGSIZE; i < new_end; i += PGSIZE * PGSIZE)
-        *(char **)i = i;
+    for (cursor = region_start + PGSIZE; cursor < region_end;
+         cursor += PGSIZE * PGSIZE)
+        *(char **)cursor = cursor;
 
-    for (i = prev_end + PGSIZE; i < new_end; i += PGSIZE * PGSIZE) {
+    for (cursor = region_start + PGSIZE; cursor < region_end;
+         cursor += PGSIZE * PGSIZE) {
         pid = fork();
         if (pid < 0) {
             printf("error forking\n");
             exit(1);
         } else if (pid == 0) {
             sbrklazy(-1L * REGION_SZ);
-            *(char **)i = i;
+            *(char **)cursor = cursor;
             exit(0);
         } else {
-            int status;
-            wait(&status);
-            if (status == 0) {
+            int exit_status;
+            wait(&exit_status);
+            if (exit_status == 0) {
                 printf("memory not unmapped\n");
                 exit(1);
             }
@@ -2592,36 +2638,38 @@ void lazy_unmap(char *s)
     exit(0);
 }
 
-void lazy_copy(char *s)
+void lazy_copy(char *test_name)
 {
     // 遅延ページに対するcopyinstr
     {
-        char *p = sbrk(0);
+        char *program_break = sbrk(0);
         sbrklazy(4 * PGSIZE);
-        open(p + 8192, 0);
+        open(program_break + 8192, 0);
     }
 
     {
-        void *xx = sbrk(0);
-        void *ret = sbrk(-(((uint64)xx) + 1));
-        if (ret != xx) {
-            printf("sbrk(sbrk(0)+1) returned %p, not old sz\n", ret);
+        void *previous_break = sbrk(0);
+        void *returned_break = sbrk(-(((uint64)previous_break) + 1));
+        if (returned_break != previous_break) {
+            printf("sbrk(sbrk(0)+1) returned %p, not old sz\n",
+                   returned_break);
             exit(1);
         }
     }
 
     // これらのアドレスへのread()とwrite()は失敗するはず。
-    unsigned long bad[] = {
+    unsigned long invalid_addresses[] = {
         0x3fffffc000, 0x3fffffd000, 0x3fffffe000,
         0x3ffffff000, 0x4000000000, 0x8000000000,
     };
-    for (int i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+    for (int i = 0;
+         i < sizeof(invalid_addresses) / sizeof(invalid_addresses[0]); i++) {
         int fd = open("README", 0);
         if (fd < 0) {
             printf("cannot open README\n");
             exit(1);
         }
-        if (read(fd, (char *)bad[i], 512) >= 0) {
+        if (read(fd, (char *)invalid_addresses[i], 512) >= 0) {
             printf("read succeeded\n");
             exit(1);
         }
@@ -2631,7 +2679,7 @@ void lazy_copy(char *s)
             printf("cannot open junk\n");
             exit(1);
         }
-        if (write(fd, (char *)bad[i], 512) >= 0) {
+        if (write(fd, (char *)invalid_addresses[i], 512) >= 0) {
             printf("write succeeded\n");
             exit(1);
         }
@@ -2641,33 +2689,33 @@ void lazy_copy(char *s)
     exit(0);
 }
 
-void lazy_copyinstr(char *s)
+void lazy_copyinstr(char *test_name)
 {
-    char *p = sbrk(0);
-    sbrk(PGSIZE - ((uint64)p % PGSIZE));
+    char *path_buffer = sbrk(0);
+    sbrk(PGSIZE - ((uint64)path_buffer % PGSIZE));
 
-    p = sbrk(0);
-    if ((uint64)p % PGSIZE != 0) {
-        printf("%s: sbrk did not align\n", s);
+    path_buffer = sbrk(0);
+    if ((uint64)path_buffer % PGSIZE != 0) {
+        printf("%s: sbrk did not align\n", test_name);
         exit(1);
     }
 
     sbrklazy(2 * PGSIZE);
-    p[4095] = '/';
-    int fd = open(&p[4095], O_RDONLY);
+    path_buffer[4095] = '/';
+    int fd = open(&path_buffer[4095], O_RDONLY);
     if (fd < 0) {
         printf("could not open /");
         exit(1);
     }
 
-    struct stat st;
-    int r = fstat(fd, &st);
-    if (r < 0) {
+    struct stat file_status;
+    int stat_result = fstat(fd, &file_status);
+    if (stat_result < 0) {
         printf("could not stat /");
         exit(1);
     }
 
-    if (st.type != T_DIR) {
+    if (file_status.type != T_DIR) {
         printf("/ is not T_DIR");
         exit(1);
     }
@@ -2675,57 +2723,59 @@ void lazy_copyinstr(char *s)
     close(fd);
 }
 
-void lazy_sbrk(char *s)
+void lazy_sbrk(char *test_name)
 {
     // sbrk()はintだけを受け取るため、MAXVAへ向けて2^30ずつ進む
-    char *p = sbrk(0);
-    while ((uint64)p < MAXVA - (1 << 30)) {
-        p = sbrklazy(1 << 30);
-        if (p < 0) {
-            printf("sbrklazy(%d) returned %p\n", 1 << 30, p);
+    char *current_break = sbrk(0);
+    while ((uint64)current_break < MAXVA - (1 << 30)) {
+        current_break = sbrklazy(1 << 30);
+        if (current_break < 0) {
+            printf("sbrklazy(%d) returned %p\n", 1 << 30, current_break);
             exit(1);
         }
 
-        p = sbrklazy(0);
+        current_break = sbrklazy(0);
     }
 
-    int n = TRAPFRAME - PGSIZE - (uint64)p;
+    int growth = TRAPFRAME - PGSIZE - (uint64)current_break;
 
-    char *p1 = sbrklazy(n);
-    if (p1 < 0 || p1 != p) {
-        printf("sbrklazy(%d) returned %p, not expected %p\n", n, p1, p);
+    char *returned_break = sbrklazy(growth);
+    if (returned_break < 0 || returned_break != current_break) {
+        printf("sbrklazy(%d) returned %p, not expected %p\n", growth,
+               returned_break, current_break);
         exit(1);
     }
 
-    p = sbrk(PGSIZE);
-    if (p < 0 || (uint64)p != TRAPFRAME - PGSIZE) {
+    current_break = sbrk(PGSIZE);
+    if (current_break < 0 ||
+        (uint64)current_break != TRAPFRAME - PGSIZE) {
         printf("sbrk(%d) returned %p, not expected TRAPFRAME-PGSIZE\n", PGSIZE,
-               p);
+               current_break);
         exit(1);
     }
 
-    p[0] = 1;
-    if (p[1] != 0) {
+    current_break[0] = 1;
+    if (current_break[1] != 0) {
         printf("sbrk() returned non-zero-filled memory\n");
         exit(1);
     }
 
-    p = sbrk(1);
-    if ((uint64)p != -1) {
-        printf("sbrk(1) returned %p, expected error\n", p);
+    current_break = sbrk(1);
+    if ((uint64)current_break != -1) {
+        printf("sbrk(1) returned %p, expected error\n", current_break);
         exit(1);
     }
 
-    p = sbrklazy(1);
-    if ((uint64)p != -1) {
-        printf("sbrklazy(1) returned %p, expected error\n", p);
+    current_break = sbrklazy(1);
+    if ((uint64)current_break != -1) {
+        printf("sbrklazy(1) returned %p, expected error\n", current_break);
         exit(1);
     }
 
     exit(0);
 }
 
-void partial_write(char *s)
+void partial_write(char *test_name)
 {
     // "A"を含むtestfileを作成する。
     // ページ境界をまたぐ2バイトをwrite()する。1バイト目は"X"、2バイト目は未マップ。
@@ -2737,37 +2787,37 @@ void partial_write(char *s)
     unlink("testfile");
     int fd = open("testfile", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: cannot create testfile\n", s);
+        printf("%s: cannot create testfile\n", test_name);
         exit(1);
     }
 
-    int cc = write(fd, "A", 1);
-    if (cc != 1) {
-        printf("%s: could not write A\n", s);
+    int io_result = write(fd, "A", 1);
+    if (io_result != 1) {
+        printf("%s: could not write A\n", test_name);
         exit(1);
     }
 
     close(fd);
     fd = open("testfile", O_RDWR);
     if (fd < 0) {
-        printf("%s: cannot re-open testfile\n", s);
+        printf("%s: cannot re-open testfile\n", test_name);
         exit(1);
     }
 
-    char *p = sbrk(0);
-    sbrk(PGSIZE - ((uint64)p % PGSIZE));
+    char *page_boundary = sbrk(0);
+    sbrk(PGSIZE - ((uint64)page_boundary % PGSIZE));
 
-    p = sbrk(0);
-    if ((uint64)p % PGSIZE != 0) {
-        printf("%s: sbrk did not align\n", s);
+    page_boundary = sbrk(0);
+    if ((uint64)page_boundary % PGSIZE != 0) {
+        printf("%s: sbrk did not align\n", test_name);
         exit(1);
     }
 
-    p[-1] = 'X';
+    page_boundary[-1] = 'X';
 
-    cc = write(fd, p - 1, 2);
-    if (cc != -1) {
-        printf("%s: write succeeded, should have failed\n", s);
+    io_result = write(fd, page_boundary - 1, 2);
+    if (io_result != -1) {
+        printf("%s: write succeeded, should have failed\n", test_name);
         exit(1);
     }
 
@@ -2775,31 +2825,31 @@ void partial_write(char *s)
 
     fd = open("testfile", O_RDONLY);
     if (fd < 0) {
-        printf("%s: cannot re-open testfile\n", s);
+        printf("%s: cannot re-open testfile\n", test_name);
         exit(1);
     }
 
-    char b;
-    cc = read(fd, &b, 1);
-    if (cc != 1) {
-        printf("%s: cannot read testfile\n", s);
+    char byte;
+    io_result = read(fd, &byte, 1);
+    if (io_result != 1) {
+        printf("%s: cannot read testfile\n", test_name);
         exit(1);
     }
 
     close(fd);
 
-    if (b != 'X') {
-        printf("%s: read returned %c, expected X\n", s, b);
+    if (byte != 'X') {
+        printf("%s: read returned %c, expected X\n", test_name, byte);
         exit(1);
     }
 
     fd = open("bigfile", O_CREATE | O_RDWR);
     for (int i = 0; i < 64; i++) {
-        char buf[1024];
-        memset(buf, 0, sizeof(buf));
-        cc = write(fd, buf, sizeof(buf));
-        if (cc != sizeof(buf)) {
-            printf("%s: could not write to bigfile\n", s);
+        char buffer[1024];
+        memset(buffer, 0, sizeof(buffer));
+        io_result = write(fd, buffer, sizeof(buffer));
+        if (io_result != sizeof(buffer)) {
+            printf("%s: could not write to bigfile\n", test_name);
             exit(-1);
         }
     }
@@ -2809,60 +2859,60 @@ void partial_write(char *s)
 
     fd = open("testfile", O_RDONLY);
     if (fd < 0) {
-        printf("%s: cannot re-open testfile\n", s);
+        printf("%s: cannot re-open testfile\n", test_name);
         exit(1);
     }
 
-    cc = read(fd, &b, 1);
-    if (cc != 1) {
-        printf("%s: cannot read testfile\n", s);
+    io_result = read(fd, &byte, 1);
+    if (io_result != 1) {
+        printf("%s: cannot read testfile\n", test_name);
         exit(1);
     }
 
     close(fd);
 
-    if (b != 'X') {
-        printf("%s: read returned %c, expected X\n", s, b);
+    if (byte != 'X') {
+        printf("%s: read returned %c, expected X\n", test_name, byte);
         exit(1);
     }
 
     unlink("testfile");
 }
 
-void unlinkcwd(char *s)
+void unlinkcwd(char *test_name)
 {
     if (mkdir("/a") < 0) {
-        printf("%s: mkdir /a failed\n", s);
+        printf("%s: mkdir /a failed\n", test_name);
         exit(1);
     }
     if (mkdir("/a/b") < 0) {
-        printf("%s: mkdir /a/b failed\n", s);
+        printf("%s: mkdir /a/b failed\n", test_name);
         exit(1);
     }
     if (chdir("/a/b") < 0) {
-        printf("%s: chdir failed\n", s);
+        printf("%s: chdir failed\n", test_name);
         exit(1);
     }
     if (unlink("/a/b") < 0) {
-        printf("%s: unlink /a/b failed\n", s);
+        printf("%s: unlink /a/b failed\n", test_name);
         exit(1);
     }
     if (unlink("/a") < 0) {
-        printf("%s: unlink /a failed\n", s);
+        printf("%s: unlink /a failed\n", test_name);
         exit(1);
     }
     if (open("../", O_RDONLY) > 0) {
-        printf("%s: open ../ non-existing directory\n", s);
+        printf("%s: open ../ non-existing directory\n", test_name);
     }
     if (open("../c", O_CREATE) > 0) {
-        printf("%s: create ../c non-existing file\n", s);
+        printf("%s: create ../c non-existing file\n", test_name);
     }
 }
 
 struct test {
-    void (*f)(char *);
-    char *s;
-} quicktests[] = {
+    void (*function)(char *);
+    char *name;
+} quick_tests[] = {
     {copyin, "copyin"},
     {copyout, "copyout"},
     {copyinstr1, "copyinstr1"},
@@ -2909,7 +2959,7 @@ struct test {
     {sbrkbasic, "sbrkbasic"},
     {sbrkmuch, "sbrkmuch"},
     {kernmem, "kernmem"},
-    {MAXVAplus, "MAXVAplus"},
+    {maxva_plus, "maxva_plus"},
     {sbrkfail, "sbrkfail"},
     {sbrkarg, "sbrkarg"},
     {validatetest, "validatetest"},
@@ -2938,7 +2988,7 @@ struct test {
 //
 
 // 間接ブロックを使うディレクトリ
-void bigdir(char *s)
+void bigdir(char *test_name)
 {
     enum { N = 500 };
     int i, fd;
@@ -2948,7 +2998,7 @@ void bigdir(char *s)
 
     fd = open("bd", O_CREATE);
     if (fd < 0) {
-        printf("%s: bigdir create failed\n", s);
+        printf("%s: bigdir create failed\n", test_name);
         exit(1);
     }
     close(fd);
@@ -2959,7 +3009,7 @@ void bigdir(char *s)
         name[2] = '0' + (i % 64);
         name[3] = '\0';
         if (link("bd", name) != 0) {
-            printf("%s: bigdir i=%d link(bd, %s) failed\n", s, i, name);
+            printf("%s: bigdir i=%d link(bd, %s) failed\n", test_name, i, name);
             exit(1);
         }
     }
@@ -2971,19 +3021,19 @@ void bigdir(char *s)
         name[2] = '0' + (i % 64);
         name[3] = '\0';
         if (unlink(name) != 0) {
-            printf("%s: bigdir unlink failed", s);
+            printf("%s: bigdir unlink failed", test_name);
             exit(1);
         }
     }
 }
 
 // virtioディスクドライバのデッドロックを誘発するための並行書き込み。
-void manywrites(char *s)
+void manywrites(char *test_name)
 {
-    int nchildren = 4;
-    int howmany = 30; // デッドロックを探すには増やす
+    int child_count = 4;
+    int iteration_count = 30; // デッドロックを探すには増やす
 
-    for (int ci = 0; ci < nchildren; ci++) {
+    for (int child_index = 0; child_index < child_count; child_index++) {
         int pid = fork();
         if (pid < 0) {
             printf("fork failed\n");
@@ -2993,21 +3043,23 @@ void manywrites(char *s)
         if (pid == 0) {
             char name[3];
             name[0] = 'b';
-            name[1] = 'a' + ci;
+            name[1] = 'a' + child_index;
             name[2] = '\0';
             unlink(name);
 
-            for (int iters = 0; iters < howmany; iters++) {
-                for (int i = 0; i < ci + 1; i++) {
+            for (int iteration = 0; iteration < iteration_count;
+                 iteration++) {
+                for (int i = 0; i < child_index + 1; i++) {
                     int fd = open(name, O_CREATE | O_RDWR);
                     if (fd < 0) {
-                        printf("%s: cannot create %s\n", s, name);
+                        printf("%s: cannot create %s\n", test_name, name);
                         exit(1);
                     }
-                    int sz = sizeof(buf);
-                    int cc = write(fd, buf, sz);
-                    if (cc != sz) {
-                        printf("%s: write(%d) ret %d\n", s, sz, cc);
+                    int write_size = sizeof(buffer);
+                    int bytes_written = write(fd, buffer, write_size);
+                    if (bytes_written != write_size) {
+                        printf("%s: write(%d) ret %d\n", test_name,
+                               write_size, bytes_written);
                         exit(1);
                     }
                     close(fd);
@@ -3020,11 +3072,11 @@ void manywrites(char *s)
         }
     }
 
-    for (int ci = 0; ci < nchildren; ci++) {
-        int st = 0;
-        wait(&st);
-        if (st != 0)
-            exit(st);
+    for (int child_index = 0; child_index < child_count; child_index++) {
+        int exit_status = 0;
+        wait(&exit_status);
+        if (exit_status != 0)
+            exit(exit_status);
     }
     exit(0);
 }
@@ -3034,7 +3086,7 @@ void manywrites(char *s)
 // カーネルにこのバグがあると、balloc: out of blocksでpanicする。
 // assumed_freeは空きブロック数より大きくする必要があるかもしれない。
 // このテストには長い時間がかかる。
-void badwrite(char *s)
+void badwrite(char *test_name)
 {
     int assumed_free = 600;
 
@@ -3067,7 +3119,7 @@ void badwrite(char *s)
 
 // メモリ不足時に後片付けするexec()コードをテストする。
 // 実際には、その状態でpanicしないことをテストする。
-void execout(char *s)
+void execout(char *test_name)
 {
     for (int avail = 0; avail < 15; avail++) {
         int pid = fork();
@@ -3077,10 +3129,10 @@ void execout(char *s)
         } else if (pid == 0) {
             // メモリをすべて割り当てる。
             while (1) {
-                char *a = sbrk(PGSIZE);
-                if (a == SBRK_ERROR)
+                char *page = sbrk(PGSIZE);
+                if (page == SBRK_ERROR)
                     break;
-                *(a + PGSIZE - 1) = 1;
+                *(page + PGSIZE - 1) = 1;
             }
 
             // exec()が少し進めるよう、数ページを解放する。
@@ -3088,8 +3140,8 @@ void execout(char *s)
                 sbrk(-PGSIZE);
 
             close(1);
-            char *args[] = {"echo", "x", 0};
-            exec("echo", args);
+            char *arguments[] = {"echo", "x", 0};
+            exec("echo", arguments);
             exit(0);
         } else {
             wait((int *)0);
@@ -3100,32 +3152,34 @@ void execout(char *s)
 }
 
 // カーネルはディスク容量不足に耐えられるか?
-void diskfull(char *s)
+void diskfull(char *test_name)
 {
-    int fi;
-    int done = 0;
+    int file_index;
+    int is_full = 0;
 
     unlink("diskfulldir");
 
-    for (fi = 0; done == 0 && '0' + fi < 0177; fi++) {
+    for (file_index = 0;
+         !is_full && '0' + file_index < 0177;
+         file_index++) {
         char name[32];
         name[0] = 'b';
         name[1] = 'i';
         name[2] = 'g';
-        name[3] = '0' + fi;
+        name[3] = '0' + file_index;
         name[4] = '\0';
         unlink(name);
         int fd = open(name, O_CREATE | O_RDWR | O_TRUNC);
         if (fd < 0) {
             // おっと、ブロックより先にinodeを使い切った。
-            printf("%s: could not create file %s\n", s, name);
-            done = 1;
+            printf("%s: could not create file %s\n", test_name, name);
+            is_full = 1;
             break;
         }
         for (int i = 0; i < MAXFILE; i++) {
-            char buf[BSIZE];
-            if (write(fd, buf, BSIZE) != BSIZE) {
-                done = 1;
+            char buffer[BSIZE];
+            if (write(fd, buffer, BSIZE) != BSIZE) {
+                is_full = 1;
                 close(fd);
                 break;
             }
@@ -3153,7 +3207,7 @@ void diskfull(char *s)
 
     // このmkdir()は失敗するはず。
     if (mkdir("diskfulldir") == 0)
-        printf("%s: mkdir(diskfulldir) unexpectedly succeeded!\n", s);
+        printf("%s: mkdir(diskfulldir) unexpectedly succeeded!\n", test_name);
 
     unlink("diskfulldir");
 
@@ -3178,7 +3232,7 @@ void diskfull(char *s)
     }
 }
 
-void outofinodes(char *s)
+void outofinodes(char *test_name)
 {
     int nzz = 32 * 32;
     for (int i = 0; i < nzz; i++) {
@@ -3208,77 +3262,78 @@ void outofinodes(char *s)
     }
 }
 
-void linkoverflow(char *s)
+void linkoverflow(char *test_name)
 {
     enum { TARGET = 32768 };
     enum { DIRS = 64 };
-    struct stat st;
+    struct stat file_status;
     int i;
 
     unlink("/lof");
     int fd = open("/lof", O_CREATE | O_RDWR);
     if (fd < 0) {
-        printf("%s: cannot create /lof\n", s);
+        printf("%s: cannot create /lof\n", test_name);
         exit(1);
     }
     close(fd);
 
     for (i = 0; i < TARGET; i++) {
-        int d = i % DIRS;
-        int f = i / DIRS;
+        int directory_index = i % DIRS;
+        int link_index = i / DIRS;
 
-        char pn[16];
-        pn[0] = '/';
-        pn[1] = 'd';
-        pn[2] = '_';
-        pn[3] = 'a' + (d / 16);
-        pn[4] = 'a' + (d % 16);
-        pn[5] = '\0';
-        if (f == 0 && mkdir(pn) < 0) {
-            printf("%s: mkdir(%s) failed\n", s, pn);
+        char path_name[16];
+        path_name[0] = '/';
+        path_name[1] = 'd';
+        path_name[2] = '_';
+        path_name[3] = 'a' + (directory_index / 16);
+        path_name[4] = 'a' + (directory_index % 16);
+        path_name[5] = '\0';
+        if (link_index == 0 && mkdir(path_name) < 0) {
+            printf("%s: mkdir(%s) failed\n", test_name, path_name);
             exit(1);
         }
 
-        pn[5] = '/';
-        pn[6] = 'l';
-        pn[7] = 'a' + (f / 256);
-        pn[8] = 'a' + ((f / 16) % 16);
-        pn[9] = 'a' + (f % 16);
-        pn[10] = '\0';
+        path_name[5] = '/';
+        path_name[6] = 'l';
+        path_name[7] = 'a' + (link_index / 256);
+        path_name[8] = 'a' + ((link_index / 16) % 16);
+        path_name[9] = 'a' + (link_index % 16);
+        path_name[10] = '\0';
 
-        if (link("/lof", pn) < 0) {
-            if (stat("/lof", &st) < 0) {
-                printf("%s: stat(/lof) failed\n", s);
+        if (link("/lof", path_name) < 0) {
+            if (stat("/lof", &file_status) < 0) {
+                printf("%s: stat(/lof) failed\n", test_name);
                 exit(1);
             }
-            if (st.nlink >= 32767) {
+            if (file_status.link_count >= 32767) {
                 // オーバーフロー検査に成功した。
                 break;
             }
-            printf("%s: link failed after %d links (nlink=%d)\n", s, i,
-                   st.nlink);
+            printf("%s: link failed after %d links (nlink=%d)\n", test_name, i,
+                   file_status.link_count);
             exit(1);
         }
 
         if (i % 100 == 0) {
-            printf("%s: i=%d, pn=%s\n", s, i, pn);
+            printf("%s: i=%d, pn=%s\n", test_name, i, path_name);
         }
     }
 
-    if (stat("/lof", &st) < 0) {
-        printf("%s: stat(/lof) failed\n", s);
+    if (stat("/lof", &file_status) < 0) {
+        printf("%s: stat(/lof) failed\n", test_name);
         exit(1);
     }
 
     unlink("/lof");
 
-    if (st.nlink < 0) {
-        printf("%s: negative link count: %d\n", s, st.nlink);
+    if (file_status.link_count < 0) {
+        printf("%s: negative link count: %d\n", test_name,
+               file_status.link_count);
         exit(1);
     }
 }
 
-struct test slowtests[] = {
+struct test slow_tests[] = {
     {bigdir, "bigdir"},
     {manywrites, "manywrites"},
     {badwrite, "badwrite"},
@@ -3296,124 +3351,127 @@ struct test slowtests[] = {
 
 // 各テストを独自のプロセスで実行する。子のexit()が成功を示せば
 // runは1を返す。
-int run(void f(char *), char *s)
+int run_test(void test_function(char *), char *test_name)
 {
     int pid;
-    int xstatus;
+    int exit_status;
 
-    printf("test %s: ", s);
+    printf("test %s: ", test_name);
     if ((pid = fork()) < 0) {
         printf("runtest: fork error\n");
         exit(1);
     }
     if (pid == 0) {
-        f(s);
+        test_function(test_name);
         exit(0);
     } else {
-        wait(&xstatus);
-        if (xstatus != 0)
+        wait(&exit_status);
+        if (exit_status != 0)
             printf("FAILED\n");
         else
             printf("OK\n");
-        return xstatus == 0;
+        return exit_status == 0;
     }
 }
 
-int runtests(struct test *tests, char *justone, int continuous)
+int run_tests(struct test *tests, char *selected_test,
+              int continuous_mode)
 {
-    int ntests = 0;
-    for (struct test *t = tests; t->s != 0; t++) {
-        if ((justone == 0) || strcmp(t->s, justone) == 0) {
-            ntests++;
-            if (!run(t->f, t->s)) {
-                if (continuous != 2) {
+    int test_count = 0;
+    for (struct test *test = tests; test->name != 0; test++) {
+        if ((selected_test == 0) ||
+            strcmp(test->name, selected_test) == 0) {
+            test_count++;
+            if (!run_test(test->function, test->name)) {
+                if (continuous_mode != 2) {
                     printf("SOME TESTS FAILED\n");
                     return -1;
                 }
             }
         }
     }
-    return ntests;
+    return test_count;
 }
 
 // sbrk()を使って空き物理メモリページ数を数える。
-int countfree()
+int count_free_pages(void)
 {
-    int n = 0;
-    uint64 sz0 = (uint64)sbrk(0);
+    int page_count = 0;
+    uint64 initial_size = (uint64)sbrk(0);
     while (1) {
-        char *a = sbrk(PGSIZE);
-        if (a == SBRK_ERROR) {
+        char *page = sbrk(PGSIZE);
+        if (page == SBRK_ERROR) {
             break;
         }
-        n += 1;
+        page_count += 1;
     }
-    sbrk(-((uint64)sbrk(0) - sz0));
-    return n;
+    sbrk(-((uint64)sbrk(0) - initial_size));
+    return page_count;
 }
 
-int drivetests(int quick, int continuous, char *justone)
+int drive_tests(int quick_only, int continuous_mode, char *selected_test)
 {
     do {
         printf("usertests starting\n");
-        int free0 = countfree();
-        int free1 = 0;
-        int ntests = 0;
-        int n;
-        n = runtests(quicktests, justone, continuous);
-        if (n < 0) {
-            if (continuous != 2) {
+        int free_pages_before = count_free_pages();
+        int free_pages_after = 0;
+        int test_count = 0;
+        int tests_run;
+        tests_run = run_tests(quick_tests, selected_test, continuous_mode);
+        if (tests_run < 0) {
+            if (continuous_mode != 2) {
                 return 1;
             }
         } else {
-            ntests += n;
+            test_count += tests_run;
         }
-        if (!quick) {
-            if (justone == 0)
+        if (!quick_only) {
+            if (selected_test == 0)
                 printf("usertests slow tests starting\n");
-            n = runtests(slowtests, justone, continuous);
-            if (n < 0) {
-                if (continuous != 2) {
+            tests_run =
+                run_tests(slow_tests, selected_test, continuous_mode);
+            if (tests_run < 0) {
+                if (continuous_mode != 2) {
                     return 1;
                 }
             } else {
-                ntests += n;
+                test_count += tests_run;
             }
         }
-        if ((free1 = countfree()) < free0) {
-            printf("FAILED -- lost some free pages %d (out of %d)\n", free1,
-                   free0);
-            if (continuous != 2) {
+        if ((free_pages_after = count_free_pages()) < free_pages_before) {
+            printf("FAILED -- lost some free pages %d (out of %d)\n",
+                   free_pages_after, free_pages_before);
+            if (continuous_mode != 2) {
                 return 1;
             }
         }
-        if (justone != 0 && ntests == 0) {
+        if (selected_test != 0 && test_count == 0) {
             printf("NO TESTS EXECUTED\n");
             return 1;
         }
-    } while (continuous);
+    } while (continuous_mode);
     return 0;
 }
 
 int main(int argc, char *argv[])
 {
-    int continuous = 0;
-    int quick = 0;
-    char *justone = 0;
+    int continuous_mode = 0;
+    int quick_only = 0;
+    char *selected_test = 0;
 
     if (argc == 2 && strcmp(argv[1], "-q") == 0) {
-        quick = 1;
+        quick_only = 1;
     } else if (argc == 2 && strcmp(argv[1], "-c") == 0) {
-        continuous = 1;
+        continuous_mode = 1;
     } else if (argc == 2 && strcmp(argv[1], "-C") == 0) {
-        continuous = 2;
+        continuous_mode = 2;
     } else if (argc == 2 && argv[1][0] != '-') {
-        justone = argv[1];
+        selected_test = argv[1];
     } else if (argc > 1) {
         printf("Usage: usertests [-c] [-C] [-q] [testname]\n");
         exit(1);
     }
-    if (drivetests(quick, continuous, justone)) {
+    if (drive_tests(quick_only, continuous_mode, selected_test)) {
         exit(1);
     }
     printf("ALL TESTS PASSED\n");

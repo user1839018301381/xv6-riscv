@@ -12,128 +12,133 @@
 
 struct pipe {
     struct spinlock lock;
-    char data[PIPESIZE];
-    uint nread;    // 読み込んだバイト数
-    uint nwrite;   // 書き込んだバイト数
-    int readopen;  // 読み込み側FDがまだ開いているか
-    int writeopen; // 書き込み側FDがまだ開いているか
+    char buffer[PIPESIZE];
+    uint total_bytes_read;
+    uint total_bytes_written;
+    int is_read_open;
+    int is_write_open;
 };
 
-int pipealloc(struct file **f0, struct file **f1)
+int pipealloc(struct file **read_file_out, struct file **write_file_out)
 {
-    struct pipe *pi;
+    struct pipe *pipe;
 
-    pi = 0;
-    *f0 = *f1 = 0;
-    if ((*f0 = filealloc()) == 0 || (*f1 = filealloc()) == 0)
-        goto bad;
-    if ((pi = (struct pipe *)kalloc()) == 0)
-        goto bad;
-    pi->readopen = 1;
-    pi->writeopen = 1;
-    pi->nwrite = 0;
-    pi->nread = 0;
-    initlock(&pi->lock, "pipe");
-    (*f0)->type = FD_PIPE;
-    (*f0)->readable = 1;
-    (*f0)->writable = 0;
-    (*f0)->pipe = pi;
-    (*f1)->type = FD_PIPE;
-    (*f1)->readable = 0;
-    (*f1)->writable = 1;
-    (*f1)->pipe = pi;
+    pipe = 0;
+    *read_file_out = *write_file_out = 0;
+    if ((*read_file_out = filealloc()) == 0 ||
+        (*write_file_out = filealloc()) == 0)
+        goto allocation_failed;
+    if ((pipe = (struct pipe *)kalloc()) == 0)
+        goto allocation_failed;
+    pipe->is_read_open = 1;
+    pipe->is_write_open = 1;
+    pipe->total_bytes_written = 0;
+    pipe->total_bytes_read = 0;
+    initlock(&pipe->lock, "pipe");
+    (*read_file_out)->type = FD_PIPE;
+    (*read_file_out)->is_readable = 1;
+    (*read_file_out)->is_writable = 0;
+    (*read_file_out)->pipe = pipe;
+    (*write_file_out)->type = FD_PIPE;
+    (*write_file_out)->is_readable = 0;
+    (*write_file_out)->is_writable = 1;
+    (*write_file_out)->pipe = pipe;
     return 0;
 
-bad:
-    if (pi)
-        kfree((char *)pi);
-    if (*f0)
-        fileclose(*f0);
-    if (*f1)
-        fileclose(*f1);
+allocation_failed:
+    if (pipe)
+        kfree((char *)pipe);
+    if (*read_file_out)
+        fileclose(*read_file_out);
+    if (*write_file_out)
+        fileclose(*write_file_out);
     return -1;
 }
 
-void pipeclose(struct pipe *pi, int writable)
+void pipeclose(struct pipe *pipe, int is_writable)
 {
-    acquire(&pi->lock);
-    if (writable) {
-        pi->writeopen = 0;
-        wakeup(&pi->nread);
+    acquire(&pipe->lock);
+    if (is_writable) {
+        pipe->is_write_open = 0;
+        wakeup(&pipe->total_bytes_read);
     } else {
-        pi->readopen = 0;
-        wakeup(&pi->nwrite);
+        pipe->is_read_open = 0;
+        wakeup(&pipe->total_bytes_written);
     }
-    if (pi->readopen == 0 && pi->writeopen == 0) {
-        release(&pi->lock);
-        kfree((char *)pi);
+    if (pipe->is_read_open == 0 && pipe->is_write_open == 0) {
+        release(&pipe->lock);
+        kfree((char *)pipe);
     } else
-        release(&pi->lock);
+        release(&pipe->lock);
 }
 
-int pipewrite(struct pipe *pi, uint64 addr, int n)
+int pipewrite(struct pipe *pipe, uint64 source_address, int byte_count)
 {
-    int i = 0;
-    struct proc *pr = myproc();
+    int bytes_written = 0;
+    struct proc *process = myproc();
 
-    acquire(&pi->lock);
-    while (i < n) {
-        if (pi->readopen == 0 || killed(pr)) {
-            release(&pi->lock);
+    acquire(&pipe->lock);
+    while (bytes_written < byte_count) {
+        if (pipe->is_read_open == 0 || is_killed(process)) {
+            release(&pipe->lock);
             return -1;
         }
-        if (pi->nwrite == pi->nread + PIPESIZE) { //DOC: pipewrite-full
-            wakeup(&pi->nread);
-            sleep_prepare(&pi->nwrite);
-            release(&pi->lock);
+        if (pipe->total_bytes_written ==
+            pipe->total_bytes_read + PIPESIZE) { //DOC: pipewrite-full
+            wakeup(&pipe->total_bytes_read);
+            sleep_prepare(&pipe->total_bytes_written);
+            release(&pipe->lock);
             sleep();
-            acquire(&pi->lock);
+            acquire(&pipe->lock);
         } else {
-            char ch;
-            if (copyin(pr->pagetable, pr->sz, &ch, addr + i, 1) == -1) {
-                if (i == 0)
-                    i = -1;
+            char byte;
+            if (copyin(process->pagetable, process->memory_size, &byte,
+                       source_address + bytes_written, 1) == -1) {
+                if (bytes_written == 0)
+                    bytes_written = -1;
                 break;
             }
-            pi->data[pi->nwrite++ % PIPESIZE] = ch;
-            i++;
+            pipe->buffer[pipe->total_bytes_written++ % PIPESIZE] = byte;
+            bytes_written++;
         }
     }
-    wakeup(&pi->nread);
-    release(&pi->lock);
+    wakeup(&pipe->total_bytes_read);
+    release(&pipe->lock);
 
-    return i;
+    return bytes_written;
 }
 
-int piperead(struct pipe *pi, uint64 addr, int n)
+int piperead(struct pipe *pipe, uint64 destination_address, int byte_count)
 {
-    int i;
-    struct proc *pr = myproc();
-    char ch;
+    int bytes_read;
+    struct proc *process = myproc();
+    char byte;
 
-    acquire(&pi->lock);
-    while (pi->nread == pi->nwrite && pi->writeopen) { //DOC: pipe-empty
-        if (killed(pr)) {
-            release(&pi->lock);
+    acquire(&pipe->lock);
+    while (pipe->total_bytes_read == pipe->total_bytes_written &&
+           pipe->is_write_open) { //DOC: pipe-empty
+        if (is_killed(process)) {
+            release(&pipe->lock);
             return -1;
         }
-        sleep_prepare(&pi->nread); //DOC: piperead-sleep
-        release(&pi->lock);
+        sleep_prepare(&pipe->total_bytes_read); //DOC: piperead-sleep
+        release(&pipe->lock);
         sleep();
-        acquire(&pi->lock);
+        acquire(&pipe->lock);
     }
-    for (i = 0; i < n; i++) { //DOC: piperead-copy
-        if (pi->nread == pi->nwrite)
+    for (bytes_read = 0; bytes_read < byte_count; bytes_read++) { //DOC: piperead-copy
+        if (pipe->total_bytes_read == pipe->total_bytes_written)
             break;
-        ch = pi->data[pi->nread % PIPESIZE];
-        if (copyout(pr->pagetable, pr->sz, addr + i, &ch, 1) == -1) {
-            if (i == 0)
-                i = -1;
+        byte = pipe->buffer[pipe->total_bytes_read % PIPESIZE];
+        if (copyout(process->pagetable, process->memory_size,
+                    destination_address + bytes_read, &byte, 1) == -1) {
+            if (bytes_read == 0)
+                bytes_read = -1;
             break;
         }
-        pi->nread++;
+        pipe->total_bytes_read++;
     }
-    wakeup(&pi->nwrite); //DOC: piperead-wakeup
-    release(&pi->lock);
-    return i;
+    wakeup(&pipe->total_bytes_written); //DOC: piperead-wakeup
+    release(&pipe->lock);
+    return bytes_read;
 }

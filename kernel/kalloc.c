@@ -9,7 +9,7 @@
 #include "riscv.h"
 #include "defs.h"
 
-void freerange(void *pa_start, void *pa_end);
+void freerange(void *start_address, void *end_address);
 
 extern char end[]; // カーネル直後の最初のアドレス。
                    // kernel.ldで定義される。
@@ -20,42 +20,43 @@ struct run {
 
 struct {
     struct spinlock lock;
-    struct run *freelist;
-} kmem;
+    struct run *free_list;
+} page_allocator;
 
 void kinit()
 {
-    initlock(&kmem.lock, "kmem");
+    initlock(&page_allocator.lock, "page_allocator");
     freerange(end, (void *)PHYSTOP);
 }
 
-void freerange(void *pa_start, void *pa_end)
+void freerange(void *start_address, void *end_address)
 {
-    char *p;
-    p = (char *)PGROUNDUP((uint64)pa_start);
-    for (; p + PGSIZE <= (char *)pa_end; p += PGSIZE)
-        kfree(p);
+    char *page;
+    page = (char *)PGROUNDUP((uint64)start_address);
+    for (; page + PGSIZE <= (char *)end_address; page += PGSIZE)
+        kfree(page);
 }
 
-// paが指す物理メモリのページを解放する。
+// page_addressが指す物理メモリのページを解放する。
 // 通常はkalloc()の呼び出しで返されたページである。
 // （アロケータ初期化時は例外。上のkinitを参照。）
-void kfree(void *pa)
+void kfree(void *page_address)
 {
-    struct run *r;
+    struct run *free_page;
 
-    if (((uint64)pa % PGSIZE) != 0 || (char *)pa < end || (uint64)pa >= PHYSTOP)
+    if (((uint64)page_address % PGSIZE) != 0 ||
+        (char *)page_address < end || (uint64)page_address >= PHYSTOP)
         panic("kfree");
 
     // ダングリング参照を検出できるようゴミで埋める。
-    memset(pa, 1, PGSIZE);
+    memset(page_address, 1, PGSIZE);
 
-    r = (struct run *)pa;
+    free_page = (struct run *)page_address;
 
-    acquire(&kmem.lock);
-    r->next = kmem.freelist;
-    kmem.freelist = r;
-    release(&kmem.lock);
+    acquire(&page_allocator.lock);
+    free_page->next = page_allocator.free_list;
+    page_allocator.free_list = free_page;
+    release(&page_allocator.lock);
 }
 
 // 4096バイトの物理メモリページを1つ割り当てる。
@@ -63,15 +64,15 @@ void kfree(void *pa)
 // メモリを割り当てられなければ0を返す。
 void *kalloc(void)
 {
-    struct run *r;
+    struct run *page;
 
-    acquire(&kmem.lock);
-    r = kmem.freelist;
-    if (r)
-        kmem.freelist = r->next;
-    release(&kmem.lock);
+    acquire(&page_allocator.lock);
+    page = page_allocator.free_list;
+    if (page)
+        page_allocator.free_list = page->next;
+    release(&page_allocator.lock);
 
-    if (r)
-        memset((char *)r, 5, PGSIZE); // ゴミで埋める
-    return (void *)r;
+    if (page)
+        memset((char *)page, 5, PGSIZE); // ゴミで埋める
+    return (void *)page;
 }

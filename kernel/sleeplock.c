@@ -9,43 +9,43 @@
 #include "proc.h"
 #include "sleeplock.h"
 
-void initsleeplock(struct sleeplock *lk, char *name)
+void initsleeplock(struct sleeplock *lock, char *name)
 {
-    initlock(&lk->lk, "sleep lock");
-    lk->name = name;
-    lk->locked = 0;
-    lk->pid = 0;
+    initlock(&lock->spinlock, "sleep lock");
+    lock->name = name;
+    lock->is_locked = 0;
+    lock->owner_pid = 0;
 }
 
-void acquiresleep(struct sleeplock *lk)
+void acquiresleep(struct sleeplock *lock)
 {
-    acquire(&lk->lk);
-    while (lk->locked) {
-        sleep_prepare(lk);
-        release(&lk->lk);
+    acquire(&lock->spinlock);
+    while (lock->is_locked) {
+        sleep_prepare(lock);
+        release(&lock->spinlock);
         sleep();
-        acquire(&lk->lk);
+        acquire(&lock->spinlock);
     }
-    lk->locked = 1;
-    lk->pid = myproc()->pid;
-    release(&lk->lk);
+    lock->is_locked = 1;
+    lock->owner_pid = myproc()->pid;
+    release(&lock->spinlock);
 }
 
-void releasesleep(struct sleeplock *lk)
+void releasesleep(struct sleeplock *lock)
 {
-    acquire(&lk->lk);
-    lk->locked = 0;
-    lk->pid = 0;
-    wakeup(lk);
-    release(&lk->lk);
+    acquire(&lock->spinlock);
+    lock->is_locked = 0;
+    lock->owner_pid = 0;
+    wakeup(lock);
+    release(&lock->spinlock);
 }
 
-int holdingsleep(struct sleeplock *lk)
+int holdingsleep(struct sleeplock *lock)
 {
-    int r;
+    int is_held;
 
-    acquire(&lk->lk);
-    r = lk->locked && (lk->pid == myproc()->pid);
-    release(&lk->lk);
-    return r;
+    acquire(&lock->spinlock);
+    is_held = lock->is_locked && (lock->owner_pid == myproc()->pid);
+    release(&lock->spinlock);
+    return is_held;
 }

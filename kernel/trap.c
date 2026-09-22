@@ -28,7 +28,7 @@ void trapinithart(void) { w_stvec((uint64)kernelvec); }
 //
 uint64 usertrap(void)
 {
-    int which_dev = 0;
+    int interrupt_type = 0;
 
     if ((r_sstatus() & SSTATUS_SPP) != 0)
         panic("usertrap: not from user mode");
@@ -36,49 +36,49 @@ uint64 usertrap(void)
     // 現在はカーネルにいるため、割り込みと例外をkerneltrap()へ送る。
     w_stvec((uint64)kernelvec); //DOC: kernelvec
 
-    struct proc *p = myproc();
+    struct proc *process = myproc();
 
     // ユーザプログラムカウンタを保存する。
-    p->trapframe->epc = r_sepc();
+    process->trapframe->epc = r_sepc();
 
     if (r_scause() == 8) {
         // システムコール
 
-        if (killed(p))
+        if (is_killed(process))
             kexit(-1);
 
         // sepcはecall命令を指しているが、次の命令へ戻したい。
-        p->trapframe->epc += 4;
+        process->trapframe->epc += 4;
 
         // 割り込みでsepc、scause、sstatusが変わるため、
         // これらのレジスタを使い終わった今だけ有効にする。
         intr_on();
 
         syscall();
-    } else if ((which_dev = devintr()) != 0) {
+    } else if ((interrupt_type = devintr()) != 0) {
         // 正常
     } else if ((r_scause() == 15 || r_scause() == 13) &&
-               vmfault(p->pagetable, p->sz, r_stval(),
+               vmfault(process->pagetable, process->memory_size, r_stval(),
                        (r_scause() == 13) ? 1 : 0) != 0) {
         // 遅延割り当てページでのページフォルト
     } else {
         printk("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(),
-               p->pid);
+               process->pid);
         printk("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
-        setkilled(p);
+        mark_killed(process);
     }
 
-    if (killed(p))
+    if (is_killed(process))
         kexit(-1);
 
     // タイマ割り込みならCPUを譲る。
-    if (which_dev == 2)
+    if (interrupt_type == 2)
         yield();
 
     prepare_return();
 
     // trampoline.Sが切り替えるユーザページテーブル
-    uint64 satp = MAKE_SATP(p->pagetable);
+    uint64 satp = MAKE_SATP(process->pagetable);
 
     // trampoline.Sへ戻る。satpの値はa0に入れる。
     return satp;
@@ -89,7 +89,7 @@ uint64 usertrap(void)
 //
 void prepare_return(void)
 {
-    struct proc *p = myproc();
+    struct proc *process = myproc();
 
     // トラップの行き先をkerneltrap()からusertrap()へ切り替えようとしている。
     // カーネルコードからusertrap()へトラップすると危険なので、割り込みを無効にする。
@@ -101,28 +101,28 @@ void prepare_return(void)
 
     // プロセスが次にカーネルへトラップしたときuservecが必要とする
     // トラップフレームの値を設定する。
-    p->trapframe->kernel_satp = r_satp();         // カーネルページテーブル
-    p->trapframe->kernel_sp = p->kstack + PGSIZE; // プロセスのカーネルスタック
-    p->trapframe->kernel_trap = (uint64)usertrap;
-    p->trapframe->kernel_hartid = r_tp(); // cpuid()用のhartid
+    process->trapframe->kernel_satp = r_satp();
+    process->trapframe->kernel_sp = process->kernel_stack + PGSIZE;
+    process->trapframe->kernel_trap = (uint64)usertrap;
+    process->trapframe->kernel_hartid = r_tp();
 
     // trampoline.Sのsretがユーザ空間へ移るために使うレジスタを設定する。
 
     // S Previous PrivilegeモードをUserに設定する。
-    unsigned long x = r_sstatus();
-    x &= ~SSTATUS_SPP; // ユーザモード用にSPPを0へクリアする
-    x |= SSTATUS_SPIE; // ユーザモードで割り込みを有効にする
-    w_sstatus(x);
+    unsigned long supervisor_status = r_sstatus();
+    supervisor_status &= ~SSTATUS_SPP; // ユーザモード用にSPPを0へクリアする
+    supervisor_status |= SSTATUS_SPIE; // ユーザモードで割り込みを有効にする
+    w_sstatus(supervisor_status);
 
     // S Exception Program Counterを保存したユーザpcに設定する。
-    w_sepc(p->trapframe->epc);
+    w_sepc(process->trapframe->epc);
 }
 
 // カーネルコードからの割り込みと例外は、現在のカーネルスタック上で
 // kernelvec経由でここへ来る。
 void kerneltrap()
 {
-    int which_dev = 0;
+    int interrupt_type = 0;
     uint64 sepc = r_sepc();
     uint64 sstatus = r_sstatus();
     uint64 scause = r_scause();
@@ -132,7 +132,7 @@ void kerneltrap()
     if (intr_get() != 0)
         panic("kerneltrap: interrupts enabled");
 
-    if ((which_dev = devintr()) == 0) {
+    if ((interrupt_type = devintr()) == 0) {
         // 不明な原因からの割り込みまたはトラップ
         printk("scause=0x%lx sepc=0x%lx stval=0x%lx\n", scause, r_sepc(),
                r_stval());
@@ -140,7 +140,7 @@ void kerneltrap()
     }
 
     // タイマ割り込みならCPUを譲る。
-    if (which_dev == 2 && myproc() != 0)
+    if (interrupt_type == 2 && myproc() != 0)
         yield();
 
     // yield()でトラップが発生した可能性があるため、

@@ -23,22 +23,22 @@
 #include "proc.h"
 
 #define BACKSPACE 0x100       // 最後に出力した1文字を消去する
-#define C(x)      ((x) - '@') // Control-xを表す
+#define C(character) ((character) - '@') // Control-xを表す
 
 //
 // uartへ1文字送る。割り込みやsleep()を使わないため
 // 割り込みから呼んでも安全。たとえばprintkや入力文字の
 // エコー用に使われる。
 //
-void consputc(int c)
+void consputc(int character)
 {
-    if (c == BACKSPACE) {
+    if (character == BACKSPACE) {
         // バックスペースが入力されたら空白で上書きする。
         uartputc_sync('\b');
         uartputc_sync(' ');
         uartputc_sync('\b');
     } else {
-        uartputc_sync(c);
+        uartputc_sync(character);
     }
 }
 
@@ -47,86 +47,91 @@ struct {
 
     // 入力用循環バッファ
 #define INPUT_BUF_SIZE 128
-    char buf[INPUT_BUF_SIZE];
-    uint r; // 読み出し位置
-    uint w; // 書き込み位置
-    uint e; // 編集位置
-} cons;
+    char buffer[INPUT_BUF_SIZE];
+    uint read_index;
+    uint write_index;
+    uint edit_index;
+} console_input;
 
 //
 // コンソールへのユーザのwrite()システムコールはここで処理する。
 // sleep()とUART割り込みを使う。
 //
-int consolewrite(int user_src, uint64 src, int n)
+int consolewrite(int source_is_user, uint64 source_address, int byte_count)
 {
-    char buf[32]; // ユーザ空間からuartへまとめて運ぶ用。
-    int i = 0;
+    char buffer[32]; // ユーザ空間からuartへまとめて運ぶ用。
+    int bytes_written = 0;
 
-    while (i < n) {
-        int nn = sizeof(buf);
-        if (nn > n - i)
-            nn = n - i;
-        if (either_copyin(buf, user_src, src + i, nn) == -1)
+    while (bytes_written < byte_count) {
+        int chunk_byte_count = sizeof(buffer);
+        if (chunk_byte_count > byte_count - bytes_written)
+            chunk_byte_count = byte_count - bytes_written;
+        if (either_copyin(buffer, source_is_user,
+                          source_address + bytes_written,
+                          chunk_byte_count) == -1)
             break;
-        uartwrite(buf, nn);
-        i += nn;
+        uartwrite(buffer, chunk_byte_count);
+        bytes_written += chunk_byte_count;
     }
 
-    return i;
+    return bytes_written;
 }
 
 //
 // コンソールからのユーザのread()はここで処理する。
-// 入力1行分(まで)をdstに複写する。
-// user_dstはdstがユーザアドレスかカーネルアドレスかを示す。
+// 入力1行分(まで)をdestination_addressに複写する。
+// destination_is_userは複写先がユーザアドレスかを示す。
 //
-int consoleread(int user_dst, uint64 dst, int n)
+int consoleread(int destination_is_user, uint64 destination_address,
+                int byte_count)
 {
-    uint target;
-    int c;
-    char cbuf;
+    uint requested_byte_count;
+    int character;
+    char input_byte;
 
-    target = n;
-    acquire(&cons.lock);
-    while (n > 0) {
-        // 割り込みハンドラがcons.bufferに入力を入れるまで待つ。
-        while (cons.r == cons.w) {
-            if (killed(myproc())) {
-                release(&cons.lock);
+    requested_byte_count = byte_count;
+    acquire(&console_input.lock);
+    while (byte_count > 0) {
+        // 割り込みハンドラがconsole_input.bufferに入力を入れるまで待つ。
+        while (console_input.read_index == console_input.write_index) {
+            if (is_killed(myproc())) {
+                release(&console_input.lock);
                 return -1;
             }
-            sleep_prepare(&cons.r);
-            release(&cons.lock);
+            sleep_prepare(&console_input.read_index);
+            release(&console_input.lock);
             sleep();
-            acquire(&cons.lock);
+            acquire(&console_input.lock);
         }
 
-        c = cons.buf[cons.r++ % INPUT_BUF_SIZE];
+        character = console_input.buffer[
+            console_input.read_index++ % INPUT_BUF_SIZE];
 
-        if (c == C('D')) { // ファイル終端
-            if (n < target) {
+        if (character == C('D')) { // ファイル終端
+            if (byte_count < requested_byte_count) {
                 // 次回用に^Dを残し、呼び出し元が0バイト結果を得られるようにする。
-                cons.r--;
+                console_input.read_index--;
             }
             break;
         }
 
         // 入力1バイトをユーザ空間バッファに複写する。
-        cbuf = c;
-        if (either_copyout(user_dst, dst, &cbuf, 1) == -1)
+        input_byte = character;
+        if (either_copyout(destination_is_user, destination_address,
+                           &input_byte, 1) == -1)
             break;
 
-        dst++;
-        --n;
+        destination_address++;
+        --byte_count;
 
-        if (c == '\n') {
+        if (character == '\n') {
             // 1行分が揃ったのでユーザレベルのread()に戻る。
             break;
         }
     }
-    release(&cons.lock);
+    release(&console_input.lock);
 
-    return target - n;
+    return requested_byte_count - byte_count;
 }
 
 //
@@ -135,53 +140,59 @@ int consoleread(int user_dst, uint64 dst, int n)
 // 消去や行削除を処理してcons.bufに追加し、
 // 1行揃ったらconsoleread()を起こす。
 //
-void consoleintr(int c)
+void consoleintr(int character)
 {
-    acquire(&cons.lock);
+    acquire(&console_input.lock);
 
-    switch (c) {
+    switch (character) {
     case C('P'): // プロセス一覧を表示する。
         procdump();
         break;
     case C('U'): // 行全体を削除する。
-        while (cons.e != cons.w &&
-               cons.buf[(cons.e - 1) % INPUT_BUF_SIZE] != '\n') {
-            cons.e--;
+        while (console_input.edit_index != console_input.write_index &&
+               console_input.buffer[(console_input.edit_index - 1) %
+                                    INPUT_BUF_SIZE] != '\n') {
+            console_input.edit_index--;
             consputc(BACKSPACE);
         }
         break;
     case C('H'): // バックスペース
     case '\x7f': // Deleteキー
-        if (cons.e != cons.w) {
-            cons.e--;
+        if (console_input.edit_index != console_input.write_index) {
+            console_input.edit_index--;
             consputc(BACKSPACE);
         }
         break;
     default:
-        if (c != 0 && cons.e - cons.r < INPUT_BUF_SIZE) {
-            c = (c == '\r') ? '\n' : c;
+        if (character != 0 &&
+            console_input.edit_index - console_input.read_index <
+                INPUT_BUF_SIZE) {
+            character = (character == '\r') ? '\n' : character;
 
             // ユーザに入力文字をエコーバックする。
-            consputc(c);
+            consputc(character);
 
             // consoleread()が消費できるよう保存する。
-            cons.buf[cons.e++ % INPUT_BUF_SIZE] = c;
+            console_input.buffer[
+                console_input.edit_index++ % INPUT_BUF_SIZE] = character;
 
-            if (c == '\n' || c == C('D') || cons.e - cons.r == INPUT_BUF_SIZE) {
+            if (character == '\n' || character == C('D') ||
+                console_input.edit_index - console_input.read_index ==
+                    INPUT_BUF_SIZE) {
                 // 1行分(またはファイル終端)が揃ったらconsoleread()を起こす。
-                cons.w = cons.e;
-                wakeup(&cons.r);
+                console_input.write_index = console_input.edit_index;
+                wakeup(&console_input.read_index);
             }
         }
         break;
     }
 
-    release(&cons.lock);
+    release(&console_input.lock);
 }
 
 void consoleinit(void)
 {
-    initlock(&cons.lock, "cons");
+    initlock(&console_input.lock, "console_input");
 
     uartinit();
 

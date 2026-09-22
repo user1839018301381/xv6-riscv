@@ -2,19 +2,19 @@
 #include "kernel/fcntl.h"
 #include "user/user.h"
 
-char buf[512];
+char buffer[512];
 
 void cat(int fd)
 {
-    int n;
+    int bytes_read;
 
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        if (write(1, buf, n) != n) {
+    while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) {
+        if (write(1, buffer, bytes_read) != bytes_read) {
             fprintf(2, "cat: write error\n");
             exit(1);
         }
     }
-    if (n < 0) {
+    if (bytes_read < 0) {
         fprintf(2, "cat: read error\n");
         exit(1);
     }

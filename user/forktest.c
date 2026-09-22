@@ -7,15 +7,15 @@
 
 #define N 1000
 
-void print(const char *s) { write(1, s, strlen(s)); }
+void print(const char *message) { write(1, message, strlen(message)); }
 
 void forktest(void)
 {
-    int n, pid;
+    int child_count, pid;
 
     print("fork test\n");
 
-    for (n = 0; n < N; n++) {
+    for (child_count = 0; child_count < N; child_count++) {
         pid = fork();
         if (pid < 0)
             break;
@@ -23,12 +23,12 @@ void forktest(void)
             exit(0);
     }
 
-    if (n == N) {
+    if (child_count == N) {
         print("fork claimed to work N times!\n");
         exit(1);
     }
 
-    for (; n > 0; n--) {
+    for (; child_count > 0; child_count--) {
         if (wait(0) < 0) {
             print("wait stopped early\n");
             exit(1);

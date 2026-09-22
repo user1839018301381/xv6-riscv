@@ -24,123 +24,126 @@
 
 struct {
     struct spinlock lock;
-    struct buf buf[NBUF];
+    struct buf buffers[NBUF];
 
     // prev/nextで全バッファをつなぐ連結リスト。
     // バッファの使用が新しい順に整列される。
-    // head.nextが最新、head.prevが最古。
+    // head.nextが最新、head.previousが最古。
     struct buf head;
-} bcache;
+} buffer_cache;
 
 void binit(void)
 {
-    struct buf *b;
+    struct buf *buffer;
 
-    initlock(&bcache.lock, "bcache");
+    initlock(&buffer_cache.lock, "buffer_cache");
 
     // バッファの連結リストを作成する
-    bcache.head.prev = &bcache.head;
-    bcache.head.next = &bcache.head;
-    for (b = bcache.buf; b < bcache.buf + NBUF; b++) {
-        b->next = bcache.head.next;
-        b->prev = &bcache.head;
-        initsleeplock(&b->lock, "buffer");
-        bcache.head.next->prev = b;
-        bcache.head.next = b;
+    buffer_cache.head.previous = &buffer_cache.head;
+    buffer_cache.head.next = &buffer_cache.head;
+    for (buffer = buffer_cache.buffers;
+         buffer < buffer_cache.buffers + NBUF; buffer++) {
+        buffer->next = buffer_cache.head.next;
+        buffer->previous = &buffer_cache.head;
+        initsleeplock(&buffer->lock, "buffer");
+        buffer_cache.head.next->previous = buffer;
+        buffer_cache.head.next = buffer;
     }
 }
 
 // デバイスdev上のブロックをバッファキャッシュから探す。
 // 見つからなければバッファを確保する。
 // いずれの場合もロック済みバッファを返す。
-static struct buf *bget(uint dev, uint blockno)
+static struct buf *acquire_buffer(uint device, uint block_number)
 {
-    struct buf *b;
+    struct buf *buffer;
 
-    acquire(&bcache.lock);
+    acquire(&buffer_cache.lock);
 
     // このブロックは既にキャッシュされているか?
-    for (b = bcache.head.next; b != &bcache.head; b = b->next) {
-        if (b->dev == dev && b->blockno == blockno) {
-            b->refcnt++;
-            release(&bcache.lock);
-            acquiresleep(&b->lock);
-            return b;
+    for (buffer = buffer_cache.head.next;
+         buffer != &buffer_cache.head; buffer = buffer->next) {
+        if (buffer->device == device && buffer->block_number == block_number) {
+            buffer->reference_count++;
+            release(&buffer_cache.lock);
+            acquiresleep(&buffer->lock);
+            return buffer;
         }
     }
 
     // キャッシュにない。
     // 未使用のうち最も古く使われた(LRU)バッファを再利用する。
-    for (b = bcache.head.prev; b != &bcache.head; b = b->prev) {
-        if (b->refcnt == 0) {
-            b->dev = dev;
-            b->blockno = blockno;
-            b->valid = 0;
-            b->refcnt = 1;
-            release(&bcache.lock);
-            acquiresleep(&b->lock);
-            return b;
+    for (buffer = buffer_cache.head.previous;
+         buffer != &buffer_cache.head; buffer = buffer->previous) {
+        if (buffer->reference_count == 0) {
+            buffer->device = device;
+            buffer->block_number = block_number;
+            buffer->is_valid = 0;
+            buffer->reference_count = 1;
+            release(&buffer_cache.lock);
+            acquiresleep(&buffer->lock);
+            return buffer;
         }
     }
-    panic("bget: no buffers");
+    panic("acquire_buffer: no buffers");
 }
 
 // 指定ブロックの内容を持つロック済みバッファを返す。
-struct buf *bread(uint dev, uint blockno)
+struct buf *bread(uint device, uint block_number)
 {
-    struct buf *b;
+    struct buf *buffer;
 
-    b = bget(dev, blockno);
-    if (!b->valid) {
-        virtio_disk_rw(b, 0);
-        b->valid = 1;
+    buffer = acquire_buffer(device, block_number);
+    if (!buffer->is_valid) {
+        virtio_disk_rw(buffer, 0);
+        buffer->is_valid = 1;
     }
-    return b;
+    return buffer;
 }
 
-// バッファbの内容をディスクに書き込む。ロック済みであること。
+// バッファの内容をディスクに書き込む。ロック済みであること。
 // bwriteを呼ぶのはログ層のみ。
-void bwrite(struct buf *b)
+void bwrite(struct buf *buffer)
 {
-    if (!holdingsleep(&b->lock))
+    if (!holdingsleep(&buffer->lock))
         panic("bwrite");
-    virtio_disk_rw(b, 1);
+    virtio_disk_rw(buffer, 1);
 }
 
 // ロック済みバッファを解放する。
 // 最近使ったバッファの先頭(MRU)へ移動する。
-void brelse(struct buf *b)
+void brelse(struct buf *buffer)
 {
-    if (!holdingsleep(&b->lock))
+    if (!holdingsleep(&buffer->lock))
         panic("brelse");
 
-    releasesleep(&b->lock);
+    releasesleep(&buffer->lock);
 
-    acquire(&bcache.lock);
-    b->refcnt--;
-    if (b->refcnt == 0) {
+    acquire(&buffer_cache.lock);
+    buffer->reference_count--;
+    if (buffer->reference_count == 0) {
         // このバッファを待っている者はいない。
-        b->next->prev = b->prev;
-        b->prev->next = b->next;
-        b->next = bcache.head.next;
-        b->prev = &bcache.head;
-        bcache.head.next->prev = b;
-        bcache.head.next = b;
+        buffer->next->previous = buffer->previous;
+        buffer->previous->next = buffer->next;
+        buffer->next = buffer_cache.head.next;
+        buffer->previous = &buffer_cache.head;
+        buffer_cache.head.next->previous = buffer;
+        buffer_cache.head.next = buffer;
     }
 
-    release(&bcache.lock);
+    release(&buffer_cache.lock);
 }
 
-void bpin(struct buf *b)
+void bpin(struct buf *buffer)
 {
-    acquire(&bcache.lock);
-    b->refcnt++;
-    release(&bcache.lock);
+    acquire(&buffer_cache.lock);
+    buffer->reference_count++;
+    release(&buffer_cache.lock);
 }
 
-void bunpin(struct buf *b)
+void bunpin(struct buf *buffer)
 {
-    acquire(&bcache.lock);
-    b->refcnt--;
-    release(&bcache.lock);
+    acquire(&buffer_cache.lock);
+    buffer->reference_count--;
+    release(&buffer_cache.lock);
 }

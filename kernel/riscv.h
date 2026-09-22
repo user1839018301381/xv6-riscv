@@ -3,9 +3,9 @@
 // このhart（コア）はどれか?
 static inline uint64 r_mhartid()
 {
-    uint64 x;
-    asm volatile("csrr %0, mhartid" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, mhartid" : "=r"(value));
+    return value;
 }
 
 // マシンステータスレジスタ mstatus
@@ -17,21 +17,21 @@ static inline uint64 r_mhartid()
 
 static inline uint64 r_mstatus()
 {
-    uint64 x;
-    asm volatile("csrr %0, mstatus" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, mstatus" : "=r"(value));
+    return value;
 }
 
-static inline void w_mstatus(uint64 x)
+static inline void w_mstatus(uint64 value)
 {
-    asm volatile("csrw mstatus, %0" : : "r"(x));
+    asm volatile("csrw mstatus, %0" : : "r"(value));
 }
 
 // マシン例外プログラムカウンタ。
 // 例外から戻るときに実行する命令のアドレスを保持する。
-static inline void w_mepc(uint64 x)
+static inline void w_mepc(uint64 value)
 {
-    asm volatile("csrw mepc, %0" : : "r"(x));
+    asm volatile("csrw mepc, %0" : : "r"(value));
 }
 
 // スーパーバイザステータスレジスタ sstatus
@@ -44,135 +44,135 @@ static inline void w_mepc(uint64 x)
 
 static inline uint64 r_sstatus()
 {
-    uint64 x;
-    asm volatile("csrr %0, sstatus" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, sstatus" : "=r"(value));
+    return value;
 }
 
-static inline void w_sstatus(uint64 x)
+static inline void w_sstatus(uint64 value)
 {
-    asm volatile("csrw sstatus, %0" : : "r"(x));
+    asm volatile("csrw sstatus, %0" : : "r"(value));
 }
 
-static inline void s_sstatus(uint64 x)
+static inline void s_sstatus(uint64 value)
 {
-    __asm__ __volatile__("csrs sstatus, %0" ::"rK"(x) : "memory");
+    __asm__ __volatile__("csrs sstatus, %0" ::"rK"(value) : "memory");
 }
 
-static inline void c_sstatus(uint64 x)
+static inline void c_sstatus(uint64 value)
 {
-    __asm__ __volatile__("csrc sstatus, %0" ::"rK"(x) : "memory");
+    __asm__ __volatile__("csrc sstatus, %0" ::"rK"(value) : "memory");
 }
 
-static inline uint64 rc_sstatus(uint64 x)
+static inline uint64 rc_sstatus(uint64 value)
 {
     __asm__ __volatile__("csrrc %0, sstatus, %1"
-                         : "=r"(x)
-                         : "rK"(x)
+                         : "=r"(value)
+                         : "rK"(value)
                          : "memory");
-    return x;
+    return value;
 }
 
 // スーパーバイザ割り込み保留
 static inline uint64 r_sip()
 {
-    uint64 x;
-    asm volatile("csrr %0, sip" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, sip" : "=r"(value));
+    return value;
 }
 
-static inline void w_sip(uint64 x) { asm volatile("csrw sip, %0" : : "r"(x)); }
+static inline void w_sip(uint64 value) { asm volatile("csrw sip, %0" : : "r"(value)); }
 
 // スーパーバイザ割り込み有効
 #define SIE_SEIE (1L << 9) // 外部
 #define SIE_STIE (1L << 5) // タイマ
 static inline uint64 r_sie()
 {
-    uint64 x;
-    asm volatile("csrr %0, sie" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, sie" : "=r"(value));
+    return value;
 }
 
-static inline void w_sie(uint64 x) { asm volatile("csrw sie, %0" : : "r"(x)); }
+static inline void w_sie(uint64 value) { asm volatile("csrw sie, %0" : : "r"(value)); }
 
 // マシンモード割り込み有効
 #define MIE_STIE (1L << 5) // スーパーバイザタイマ
 static inline uint64 r_mie()
 {
-    uint64 x;
-    asm volatile("csrr %0, mie" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, mie" : "=r"(value));
+    return value;
 }
 
-static inline void w_mie(uint64 x) { asm volatile("csrw mie, %0" : : "r"(x)); }
+static inline void w_mie(uint64 value) { asm volatile("csrw mie, %0" : : "r"(value)); }
 
 // スーパーバイザ例外プログラムカウンタ。
 // 例外から戻るときに実行する命令のアドレスを保持する。
-static inline void w_sepc(uint64 x)
+static inline void w_sepc(uint64 value)
 {
-    asm volatile("csrw sepc, %0" : : "r"(x));
+    asm volatile("csrw sepc, %0" : : "r"(value));
 }
 
 static inline uint64 r_sepc()
 {
-    uint64 x;
-    asm volatile("csrr %0, sepc" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, sepc" : "=r"(value));
+    return value;
 }
 
 // マシン例外の委譲
 static inline uint64 r_medeleg()
 {
-    uint64 x;
-    asm volatile("csrr %0, medeleg" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, medeleg" : "=r"(value));
+    return value;
 }
 
-static inline void w_medeleg(uint64 x)
+static inline void w_medeleg(uint64 value)
 {
-    asm volatile("csrw medeleg, %0" : : "r"(x));
+    asm volatile("csrw medeleg, %0" : : "r"(value));
 }
 
 // マシン割り込みの委譲
 static inline uint64 r_mideleg()
 {
-    uint64 x;
-    asm volatile("csrr %0, mideleg" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, mideleg" : "=r"(value));
+    return value;
 }
 
-static inline void w_mideleg(uint64 x)
+static inline void w_mideleg(uint64 value)
 {
-    asm volatile("csrw mideleg, %0" : : "r"(x));
+    asm volatile("csrw mideleg, %0" : : "r"(value));
 }
 
 // スーパーバイザトラップベクタのベースアドレス。
 // 下位2ビットはモード。
-static inline void w_stvec(uint64 x)
+static inline void w_stvec(uint64 value)
 {
-    asm volatile("csrw stvec, %0" : : "r"(x));
+    asm volatile("csrw stvec, %0" : : "r"(value));
 }
 
 static inline uint64 r_stvec()
 {
-    uint64 x;
-    asm volatile("csrr %0, stvec" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, stvec" : "=r"(value));
+    return value;
 }
 
 // スーパーバイザタイマ比較レジスタ
 static inline uint64 r_stimecmp()
 {
-    uint64 x;
-    // asm volatile("csrr %0, stimecmp" : "=r" (x) );
-    asm volatile("csrr %0, 0x14d" : "=r"(x));
-    return x;
+    uint64 value;
+    // asm volatile("csrr %0, stimecmp" : "=r" (value) );
+    asm volatile("csrr %0, 0x14d" : "=r"(value));
+    return value;
 }
 
-static inline void w_stimecmp(uint64 x)
+static inline void w_stimecmp(uint64 value)
 {
-    // asm volatile("csrw stimecmp, %0" : : "r" (x));
-    asm volatile("csrw 0x14d, %0" : : "r"(x));
+    // asm volatile("csrw stimecmp, %0" : : "r" (value));
+    asm volatile("csrw 0x14d, %0" : : "r"(value));
 }
 
 // マシン環境設定レジスタ
@@ -182,27 +182,27 @@ static inline void w_stimecmp(uint64 x)
 
 static inline uint64 r_menvcfg()
 {
-    uint64 x;
-    // asm volatile("csrr %0, menvcfg" : "=r" (x) );
-    asm volatile("csrr %0, 0x30a" : "=r"(x));
-    return x;
+    uint64 value;
+    // asm volatile("csrr %0, menvcfg" : "=r" (value) );
+    asm volatile("csrr %0, 0x30a" : "=r"(value));
+    return value;
 }
 
-static inline void w_menvcfg(uint64 x)
+static inline void w_menvcfg(uint64 value)
 {
-    // asm volatile("csrw menvcfg, %0" : : "r" (x));
-    asm volatile("csrw 0x30a, %0" : : "r"(x));
+    // asm volatile("csrw menvcfg, %0" : : "r" (value));
+    asm volatile("csrw 0x30a, %0" : : "r"(value));
 }
 
 // 物理メモリ保護
-static inline void w_pmpcfg0(uint64 x)
+static inline void w_pmpcfg0(uint64 value)
 {
-    asm volatile("csrw pmpcfg0, %0" : : "r"(x));
+    asm volatile("csrw pmpcfg0, %0" : : "r"(value));
 }
 
-static inline void w_pmpaddr0(uint64 x)
+static inline void w_pmpaddr0(uint64 value)
 {
-    asm volatile("csrw pmpaddr0, %0" : : "r"(x));
+    asm volatile("csrw pmpaddr0, %0" : : "r"(value));
 }
 
 // RISC-VのSv39ページテーブル方式を使う。
@@ -212,53 +212,53 @@ static inline void w_pmpaddr0(uint64 x)
 
 // スーパーバイザのアドレス変換と保護。
 // ページテーブルのアドレスを保持する。
-static inline void w_satp(uint64 x)
+static inline void w_satp(uint64 value)
 {
-    asm volatile("csrw satp, %0" : : "r"(x));
+    asm volatile("csrw satp, %0" : : "r"(value));
 }
 
 static inline uint64 r_satp()
 {
-    uint64 x;
-    asm volatile("csrr %0, satp" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, satp" : "=r"(value));
+    return value;
 }
 
 // スーパーバイザトラップ原因
 static inline uint64 r_scause()
 {
-    uint64 x;
-    asm volatile("csrr %0, scause" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, scause" : "=r"(value));
+    return value;
 }
 
 // スーパーバイザトラップ値
 static inline uint64 r_stval()
 {
-    uint64 x;
-    asm volatile("csrr %0, stval" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, stval" : "=r"(value));
+    return value;
 }
 
 // マシンモードカウンタ有効
-static inline void w_mcounteren(uint64 x)
+static inline void w_mcounteren(uint64 value)
 {
-    asm volatile("csrw mcounteren, %0" : : "r"(x));
+    asm volatile("csrw mcounteren, %0" : : "r"(value));
 }
 
 static inline uint64 r_mcounteren()
 {
-    uint64 x;
-    asm volatile("csrr %0, mcounteren" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, mcounteren" : "=r"(value));
+    return value;
 }
 
 // マシンモードのサイクルカウンタ
 static inline uint64 r_time()
 {
-    uint64 x;
-    asm volatile("csrr %0, time" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("csrr %0, time" : "=r"(value));
+    return value;
 }
 
 // デバイス割り込みを有効にする
@@ -270,33 +270,33 @@ static inline void intr_off() { c_sstatus(SSTATUS_SIE); }
 // デバイス割り込みは有効か?
 static inline int intr_get()
 {
-    uint64 x = r_sstatus();
-    return (x & SSTATUS_SIE) != 0;
+    uint64 value = r_sstatus();
+    return (value & SSTATUS_SIE) != 0;
 }
 
 static inline uint64 r_sp()
 {
-    uint64 x;
-    asm volatile("mv %0, sp" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("mv %0, sp" : "=r"(value));
+    return value;
 }
 
 // xv6がこのコアのhartid（コア番号、cpus[]の添字）を保持するために使う
 // スレッドポインタtpを読み書きする。
 static inline uint64 r_tp()
 {
-    uint64 x;
-    asm volatile("mv %0, tp" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("mv %0, tp" : "=r"(value));
+    return value;
 }
 
-static inline void w_tp(uint64 x) { asm volatile("mv tp, %0" : : "r"(x)); }
+static inline void w_tp(uint64 value) { asm volatile("mv tp, %0" : : "r"(value)); }
 
 static inline uint64 r_ra()
 {
-    uint64 x;
-    asm volatile("mv %0, ra" : "=r"(x));
-    return x;
+    uint64 value;
+    asm volatile("mv %0, ra" : "=r"(value));
+    return value;
 }
 
 // TLBをフラッシュする。

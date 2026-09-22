@@ -14,10 +14,10 @@ __attribute__((aligned(16))) char stack0[4096 * NCPU];
 void start()
 {
     // mret用にM Previous PrivilegeモードをSupervisorに設定する。
-    unsigned long x = r_mstatus();
-    x &= ~MSTATUS_MPP_MASK;
-    x |= MSTATUS_MPP_S;
-    w_mstatus(x);
+    unsigned long machine_status = r_mstatus();
+    machine_status &= ~MSTATUS_MPP_MASK;
+    machine_status |= MSTATUS_MPP_S;
+    w_mstatus(machine_status);
 
     // mret用にM Exception Program Counterをmainに設定する。
     // gcc -mcmodel=medany が必要
@@ -43,8 +43,8 @@ void start()
     timerinit();
 
     // cpuid()用に各CPUのhartidをtpレジスタに保持する。
-    int id = r_mhartid();
-    w_tp(id);
+    int hart_id = r_mhartid();
+    w_tp(hart_id);
 
     // スーパーバイザモードに切り替えてmain()へジャンプする。
     asm volatile("mret");

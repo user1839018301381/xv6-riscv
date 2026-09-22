@@ -20,10 +20,10 @@ struct context {
 
 // CPUごとの状態。
 struct cpu {
-    struct proc *proc;      // このCPU上で実行中のプロセス、または空。
-    struct context context; // スケジューラへ入るためにswtch()する先。
-    int noff;               // push_off()の入れ子の深さ。
-    int intena;             // push_off()前に割込みは有効だったか?
+    struct proc *process;    // このCPU上で実行中のプロセス、または空。
+    struct context context;  // スケジューラへ入るためにswtch()する先。
+    int interrupt_disable_depth;
+    int interrupts_enabled_before_push;
 };
 
 extern struct cpu cpus[NCPU];
@@ -80,23 +80,23 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 struct proc {
     struct spinlock lock;
 
-    // これらを使うときはp->lockを保持しなければならない:
+    // これらを使うときはprocess->lockを保持しなければならない:
     enum procstate state; // プロセスの状態
-    void *chan;           // 0でなければchanでスリープ中
-    int killed;           // 0でなければ終了対象
-    int xstate;           // 親のwaitへ返す終了ステータス
+    void *sleep_channel;
+    int is_killed;
+    int exit_status;
     int pid;              // プロセスID
 
     // これを使うときはwait_lockを保持しなければならない:
     struct proc *parent; // 親プロセス
 
-    // これらはプロセス固有なのでp->lockを保持する必要はない。
-    uint64 kstack;               // カーネルスタックの仮想アドレス
-    uint64 sz;                   // プロセスメモリのサイズ（バイト）
-    pagetable_t pagetable;       // ユーザページテーブル
-    struct trapframe *trapframe; // trampoline.S用のデータページ
-    struct context context;      // プロセス実行のためにここへswtchする
-    struct file *ofile[NOFILE];  // オープン中のファイル
-    struct inode *cwd;           // 現在のディレクトリ
-    char name[16];               // プロセス名（デバッグ用）
+    // これらはプロセス固有なのでprocess->lockを保持する必要はない。
+    uint64 kernel_stack;
+    uint64 memory_size;
+    pagetable_t pagetable;        // ユーザページテーブル
+    struct trapframe *trapframe;  // trampoline.S用のデータページ
+    struct context context;       // プロセス実行のためにここへswtchする
+    struct file *open_files[NOFILE];
+    struct inode *current_directory;
+    char name[16];                // プロセス名（デバッグ用）
 };

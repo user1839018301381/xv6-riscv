@@ -12,27 +12,27 @@ char buf[BUFSZ];
 int main(int argc, char **argv)
 {
     int fd = 0;
-    char *s = argv[0];
-    struct stat st;
-    char *ff = "file0";
+    char *program_name = argv[0];
+    struct stat file_status;
+    char *file_name = "file0";
 
-    if ((fd = open(ff, O_CREATE | O_WRONLY)) < 0) {
-        printf("%s: open failed\n", s);
+    if ((fd = open(file_name, O_CREATE | O_WRONLY)) < 0) {
+        printf("%s: open failed\n", program_name);
         exit(1);
     }
-    if (fstat(fd, &st) < 0) {
-        fprintf(2, "%s: cannot stat %s\n", s, "ff");
+    if (fstat(fd, &file_status) < 0) {
+        fprintf(2, "%s: cannot stat %s\n", program_name, file_name);
         exit(1);
     }
-    if (unlink(ff) < 0) {
-        printf("%s: unlink failed\n", s);
+    if (unlink(file_name) < 0) {
+        printf("%s: unlink failed\n", program_name);
         exit(1);
     }
-    if (open(ff, O_RDONLY) != -1) {
-        printf("%s: open successed\n", s);
+    if (open(file_name, O_RDONLY) != -1) {
+        printf("%s: open successed\n", program_name);
         exit(1);
     }
-    printf("wait for kill and reclaim %d\n", st.ino);
+    printf("wait for kill and reclaim %d\n", file_status.inode_number);
     // 終了させられるまで待機する
     for (;;)
         pause(1000);

@@ -12,7 +12,7 @@ char buf[BUFSZ];
 
 int main(int argc, char **argv)
 {
-    int fd, n;
+    int fd, bytes_written;
     enum { N = 250, SZ = 2000 };
 
     for (int i = 1; i < argc; i++) {
@@ -29,19 +29,19 @@ int main(int argc, char **argv)
             }
             memset(buf, '0' + i, SZ);
             for (i = 0; i < N; i++) {
-                if ((n = write(fd, buf, SZ)) != SZ) {
-                    printf("write failed %d\n", n);
+                if ((bytes_written = write(fd, buf, SZ)) != SZ) {
+                    printf("write failed %d\n", bytes_written);
                     exit(1);
                 }
             }
             exit(0);
         }
     }
-    int xstatus;
+    int exit_status;
     for (int i = 1; i < argc; i++) {
-        wait(&xstatus);
-        if (xstatus != 0)
-            exit(xstatus);
+        wait(&exit_status);
+        if (exit_status != 0)
+            exit(exit_status);
     }
     return 0;
 }

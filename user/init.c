@@ -9,11 +9,11 @@
 #include "user/user.h"
 #include "kernel/fcntl.h"
 
-char *argv[] = {"sh", 0};
+char *shell_argv[] = {"sh", 0};
 
 int main(void)
 {
-    int pid, wpid;
+    int shell_pid, exited_pid;
 
     if (open("console", O_RDWR) < 0) {
         mknod("console", CONSOLE, 0);
@@ -24,13 +24,13 @@ int main(void)
 
     for (;;) {
         printf("init: starting sh\n");
-        pid = fork();
-        if (pid < 0) {
+        shell_pid = fork();
+        if (shell_pid < 0) {
             printf("init: fork failed\n");
             exit(1);
         }
-        if (pid == 0) {
-            exec("sh", argv);
+        if (shell_pid == 0) {
+            exec("sh", shell_argv);
             printf("init: exec sh failed\n");
             exit(1);
         }
@@ -38,11 +38,11 @@ int main(void)
         for (;;) {
             // この wait() はシェルが終了した場合や、
             // 親を持たないプロセスが終了した場合に復帰する。
-            wpid = wait((int *)0);
-            if (wpid == pid) {
+            exited_pid = wait((int *)0);
+            if (exited_pid == shell_pid) {
                 // シェルが終了したので再起動する。
                 break;
-            } else if (wpid < 0) {
+            } else if (exited_pid < 0) {
                 printf("init: wait returned an error\n");
                 exit(1);
             } else {

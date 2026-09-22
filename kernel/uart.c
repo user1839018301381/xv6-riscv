@@ -16,7 +16,7 @@
 #define Reg(reg) ((volatile unsigned char *)(UART0 + (reg)))
 
 #define ReadReg(reg)     (*(Reg(reg)))
-#define WriteReg(reg, v) (*(Reg(reg)) = (v))
+#define WriteReg(reg, value) (*(Reg(reg)) = (value))
 
 // UART制御レジスタ。
 // 読み込みと書き込みで意味が異なるものがある。
@@ -39,7 +39,7 @@
 
 // 送信スレッドの書き込みを直列化する
 static struct sleeplock tx_lock;
-static int tx_chan; // &tx_chanは「待機チャネル」
+static int tx_channel; // &tx_channelは「待機チャネル」
 
 extern volatile int panicking; // printk.cから
 extern volatile int panicked;  // printk.cから
@@ -71,18 +71,18 @@ void uartinit(void)
     initsleeplock(&tx_lock, "uart");
 }
 
-// buf[]をUARTへ送信する。UARTがビジーならブロックするため、
+// buffer[]をUARTへ送信する。UARTがビジーならブロックするため、
 // 割り込みからは呼べず、write()システムコールからのみ呼べる。
-void uartwrite(char buf[], int n)
+void uartwrite(char buffer[], int byte_count)
 {
     acquiresleep(&tx_lock);
 
-    int i = 0;
-    while (i < n) {
-        sleep_prepare(&tx_chan);
+    int bytes_written = 0;
+    while (bytes_written < byte_count) {
+        sleep_prepare(&tx_channel);
         if (ReadReg(LSR) & LSR_TX_IDLE) {
-            WriteReg(THR, buf[i]);
-            i += 1;
+            WriteReg(THR, buffer[bytes_written]);
+            bytes_written++;
         } else {
             sleep();
         }
@@ -94,7 +94,7 @@ void uartwrite(char buf[], int n)
 // 割り込みを使わずにUARTへ1バイトを書き込む。
 // カーネルのprintk()と文字のエコーに使う。
 // UARTの出力レジスタが空くまでスピンする。
-void uartputc_sync(int c)
+void uartputc_sync(int character)
 {
     if (panicking == 0)
         push_off();
@@ -107,7 +107,7 @@ void uartputc_sync(int c)
     // UARTがLSRのTransmit Holding Emptyを設定するまで待つ。
     while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
         ;
-    WriteReg(THR, c);
+    WriteReg(THR, character);
 
     if (panicking == 0)
         pop_off();
@@ -115,7 +115,7 @@ void uartputc_sync(int c)
 
 // UARTから入力文字を1つ読み取ろうとする。
 // 待機中の文字がなければ-1を返す。
-static int uartgetc(void)
+static int uart_try_read_character(void)
 {
     // 入力は準備できているか?
     if (ReadReg(LSR) & LSR_RX_READY) {
@@ -133,14 +133,14 @@ void uartintr(void)
 
     if (ReadReg(LSR) & LSR_TX_IDLE) {
         // UARTの送信が完了したので送信スレッドを起こす。
-        wakeup(&tx_chan);
+        wakeup(&tx_channel);
     }
 
     // 到着した文字があれば読み取って処理する。
     while (1) {
-        int c = uartgetc();
-        if (c == -1)
+        int input_character = uart_try_read_character();
+        if (input_character == -1)
             break;
-        consoleintr(c);
+        consoleintr(input_character);
     }
 }

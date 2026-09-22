@@ -6,82 +6,95 @@
 // KernighanとRitchieによるメモリアロケータ。
 // 『The C Programming Language』第2版、第8.7節。
 
-typedef long Align;
+typedef long Alignment;
 
-union header {
+union allocation_header {
     struct {
-        union header *ptr;
-        uint size;
-    } s;
-    Align x;
+        union allocation_header *next;
+        uint unit_count;
+    } metadata;
+    Alignment alignment;
 };
 
-typedef union header Header;
+typedef union allocation_header AllocationHeader;
 
-static Header base;
-static Header *freep;
+static AllocationHeader free_list_anchor;
+static AllocationHeader *free_list;
 
-void free(void *ap)
+void free(void *address)
 {
-    Header *bp, *p;
+    AllocationHeader *freed_block, *current_block;
 
-    bp = (Header *)ap - 1;
-    for (p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr)
-        if (p >= p->s.ptr && (bp > p || bp < p->s.ptr))
+    freed_block = (AllocationHeader *)address - 1;
+    for (current_block = free_list;
+         !(freed_block > current_block &&
+           freed_block < current_block->metadata.next);
+         current_block = current_block->metadata.next)
+        if (current_block >= current_block->metadata.next &&
+            (freed_block > current_block ||
+             freed_block < current_block->metadata.next))
             break;
-    if (bp + bp->s.size == p->s.ptr) {
-        bp->s.size += p->s.ptr->s.size;
-        bp->s.ptr = p->s.ptr->s.ptr;
+    if (freed_block + freed_block->metadata.unit_count ==
+        current_block->metadata.next) {
+        freed_block->metadata.unit_count +=
+            current_block->metadata.next->metadata.unit_count;
+        freed_block->metadata.next =
+            current_block->metadata.next->metadata.next;
     } else
-        bp->s.ptr = p->s.ptr;
-    if (p + p->s.size == bp) {
-        p->s.size += bp->s.size;
-        p->s.ptr = bp->s.ptr;
+        freed_block->metadata.next = current_block->metadata.next;
+    if (current_block + current_block->metadata.unit_count == freed_block) {
+        current_block->metadata.unit_count += freed_block->metadata.unit_count;
+        current_block->metadata.next = freed_block->metadata.next;
     } else
-        p->s.ptr = bp;
-    freep = p;
+        current_block->metadata.next = freed_block;
+    free_list = current_block;
 }
 
-static Header *morecore(uint nu)
+static AllocationHeader *grow_heap(uint requested_units)
 {
-    char *p;
-    Header *hp;
+    char *allocated_memory;
+    AllocationHeader *new_block;
 
-    if (nu < 4096)
-        nu = 4096;
-    p = sbrk(nu * sizeof(Header));
-    if (p == SBRK_ERROR)
+    if (requested_units < 4096)
+        requested_units = 4096;
+    allocated_memory = sbrk(requested_units * sizeof(AllocationHeader));
+    if (allocated_memory == SBRK_ERROR)
         return 0;
-    hp = (Header *)p;
-    hp->s.size = nu;
-    free((void *)(hp + 1));
-    return freep;
+    new_block = (AllocationHeader *)allocated_memory;
+    new_block->metadata.unit_count = requested_units;
+    free((void *)(new_block + 1));
+    return free_list;
 }
 
-void *malloc(uint nbytes)
+void *malloc(uint byte_count)
 {
-    Header *p, *prevp;
-    uint nunits;
+    AllocationHeader *block, *previous_block;
+    uint required_units;
 
-    nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
-    if ((prevp = freep) == 0) {
-        base.s.ptr = freep = prevp = &base;
-        base.s.size = 0;
+    required_units =
+        (byte_count + sizeof(AllocationHeader) - 1) /
+            sizeof(AllocationHeader) +
+        1;
+    if ((previous_block = free_list) == 0) {
+        free_list_anchor.metadata.next = free_list = previous_block =
+            &free_list_anchor;
+        free_list_anchor.metadata.unit_count = 0;
     }
-    for (p = prevp->s.ptr;; prevp = p, p = p->s.ptr) {
-        if (p->s.size >= nunits) {
-            if (p->s.size == nunits)
-                prevp->s.ptr = p->s.ptr;
+    for (block = previous_block->metadata.next;;
+         previous_block = block, block = block->metadata.next) {
+        if (block->metadata.unit_count >= required_units) {
+            if (block->metadata.unit_count == required_units)
+                previous_block->metadata.next = block->metadata.next;
             else {
-                p->s.size -= nunits;
-                p += p->s.size;
-                p->s.size = nunits;
+                block->metadata.unit_count -= required_units;
+                block += block->metadata.unit_count;
+                block->metadata.unit_count = required_units;
             }
-            freep = prevp;
-            return (void *)(p + 1);
+            free_list = previous_block;
+            return (void *)(block + 1);
         }
-        if (p == freep)
-            if ((p = morecore(nunits)) == 0)
+        if (block == free_list)
+            if ((block = grow_heap(required_units)) == 0)
                 return 0;
     }
 }

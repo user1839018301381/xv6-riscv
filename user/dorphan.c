@@ -11,20 +11,20 @@ char buf[BUFSZ];
 
 int main(int argc, char **argv)
 {
-    char *s = argv[0];
+    char *program_name = argv[0];
 
     if (mkdir("dd") != 0) {
-        printf("%s: mkdir dd failed\n", s);
+        printf("%s: mkdir dd failed\n", program_name);
         exit(1);
     }
 
     if (chdir("dd") != 0) {
-        printf("%s: chdir dd failed\n", s);
+        printf("%s: chdir dd failed\n", program_name);
         exit(1);
     }
 
     if (unlink("../dd") < 0) {
-        printf("%s: unlink failed\n", s);
+        printf("%s: unlink failed\n", program_name);
         exit(1);
     }
     printf("wait for kill and reclaim\n");

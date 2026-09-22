@@ -8,52 +8,52 @@
 #include "proc.h"
 #include "defs.h"
 
-void initlock(struct spinlock *lk, char *name)
+void initlock(struct spinlock *lock, char *name)
 {
-    lk->name = name;
-    lk->locked = 0;
-    lk->cpu = 0;
+    lock->name = name;
+    lock->is_locked = 0;
+    lock->owning_cpu = 0;
 }
 
 // ロックを取得する。
 // ロックを取得するまでループ（スピン）する。
-void acquire(struct spinlock *lk)
+void acquire(struct spinlock *lock)
 {
     push_off(); // デッドロックを避けるため割り込みを無効にする。
-    if (holding(lk))
+    if (holding(lock))
         panic("acquire");
 
     // RISC-Vでは__atomic_exchange_nはアトミックな交換になる:
     //   a5 = 1
-    //   s1 = &lk->locked
+    //   s1 = &lock->is_locked
     //   amoswap.w.aq a5, a5, (s1)
     //
     // __atomic_exchange_nに__ATOMIC_ACQUIREを渡すと、
     // Cコンパイラとプロセッサはこの点を越えてロードやストアを移動しない。
     // これによりクリティカルセクションのメモリ参照が、
     // ロック取得後に厳密に行われる。
-    while (__atomic_exchange_n(&lk->locked, 1, __ATOMIC_ACQUIRE) != 0)
+    while (__atomic_exchange_n(&lock->is_locked, 1, __ATOMIC_ACQUIRE) != 0)
         ;
 
     // holding()とデバッグ用にロック取得情報を記録する。
-    lk->cpu = mycpu();
+    lock->owning_cpu = mycpu();
 }
 
 // ロックを解放する。
-void release(struct spinlock *lk)
+void release(struct spinlock *lock)
 {
-    if (!holding(lk))
+    if (!holding(lock))
         panic("release");
 
-    lk->cpu = 0;
+    lock->owning_cpu = 0;
 
-    // lk->locked = 0と同等の処理でロックを解放する。
+    // lock->is_locked = 0と同等の処理でロックを解放する。
     //
     // Cの代入は使わない。C標準では代入が複数のストア命令で
     // 実装される可能性があるためである。
     //
     // RISC-Vでは__atomic_store_nは単一のアトミックストアになる:
-    //   s1 = &lk->locked
+    //   s1 = &lock->is_locked
     //   fence rw,w
     //   sw zero,0(s1)
     //
@@ -65,18 +65,18 @@ void release(struct spinlock *lk)
     //
     // RISC-Vではストアの前にフェンス命令が生成される:
     //   fence rw,w
-    __atomic_store_n(&lk->locked, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&lock->is_locked, 0, __ATOMIC_RELEASE);
 
     pop_off();
 }
 
 // このCPUがロックを保持しているか確認する。
 // 割り込みは無効でなければならない。
-int holding(struct spinlock *lk)
+int holding(struct spinlock *lock)
 {
-    int r;
-    r = (lk->locked && lk->cpu == mycpu());
-    return r;
+    int is_held;
+    is_held = (lock->is_locked && lock->owning_cpu == mycpu());
+    return is_held;
 }
 
 // push_off/pop_offはintr_off()/intr_on()に似ているが、対になっている。
@@ -87,22 +87,22 @@ void push_off(void)
 {
     // mycpu()使用中の意図しないコンテキスト切り替えを防ぐため、
     // 割り込みを無効にする。
-    uint64 flags = rc_sstatus(SSTATUS_SIE);
-    int old = !!(flags & SSTATUS_SIE);
+    uint64 status_flags = rc_sstatus(SSTATUS_SIE);
+    int interrupts_were_enabled = !!(status_flags & SSTATUS_SIE);
 
-    if (mycpu()->noff == 0)
-        mycpu()->intena = old;
-    mycpu()->noff += 1;
+    if (mycpu()->interrupt_disable_depth == 0)
+        mycpu()->interrupts_enabled_before_push = interrupts_were_enabled;
+    mycpu()->interrupt_disable_depth += 1;
 }
 
 void pop_off(void)
 {
-    struct cpu *c = mycpu();
+    struct cpu *cpu = mycpu();
     if (intr_get())
         panic("pop_off - interruptible");
-    if (c->noff < 1)
+    if (cpu->interrupt_disable_depth < 1)
         panic("pop_off");
-    c->noff -= 1;
-    if (c->noff == 0 && c->intena)
+    cpu->interrupt_disable_depth -= 1;
+    if (cpu->interrupt_disable_depth == 0 && cpu->interrupts_enabled_before_push)
         intr_on();
 }

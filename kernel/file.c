@@ -16,77 +16,78 @@
 struct devsw devsw[NDEV];
 struct {
     struct spinlock lock;
-    struct file file[NFILE];
-} ftable;
+    struct file files[NFILE];
+} file_table;
 
-void fileinit(void) { initlock(&ftable.lock, "ftable"); }
+void fileinit(void) { initlock(&file_table.lock, "file_table"); }
 
 // ファイル構造体を1つ割り当てる。
 struct file *filealloc(void)
 {
-    struct file *f;
+    struct file *file;
 
-    acquire(&ftable.lock);
-    for (f = ftable.file; f < ftable.file + NFILE; f++) {
-        if (f->ref == 0) {
-            f->ref = 1;
-            release(&ftable.lock);
-            return f;
+    acquire(&file_table.lock);
+    for (file = file_table.files; file < file_table.files + NFILE; file++) {
+        if (file->reference_count == 0) {
+            file->reference_count = 1;
+            release(&file_table.lock);
+            return file;
         }
     }
-    release(&ftable.lock);
+    release(&file_table.lock);
     return 0;
 }
 
-// ファイルfの参照カウントを増やす。
-struct file *filedup(struct file *f)
+// ファイルの参照カウントを増やす。
+struct file *filedup(struct file *file)
 {
-    acquire(&ftable.lock);
-    if (f->ref < 1)
+    acquire(&file_table.lock);
+    if (file->reference_count < 1)
         panic("filedup");
-    f->ref++;
-    release(&ftable.lock);
-    return f;
+    file->reference_count++;
+    release(&file_table.lock);
+    return file;
 }
 
-// ファイルfを閉じる(参照カウントを減らし、0になったら閉じる)。
-void fileclose(struct file *f)
+// ファイルを閉じる(参照カウントを減らし、0になったら閉じる)。
+void fileclose(struct file *file)
 {
-    struct file ff;
+    struct file closed_file;
 
-    acquire(&ftable.lock);
-    if (f->ref < 1)
+    acquire(&file_table.lock);
+    if (file->reference_count < 1)
         panic("fileclose");
-    if (--f->ref > 0) {
-        release(&ftable.lock);
+    if (--file->reference_count > 0) {
+        release(&file_table.lock);
         return;
     }
-    ff = *f;
-    f->ref = 0;
-    f->type = FD_NONE;
-    release(&ftable.lock);
+    closed_file = *file;
+    file->reference_count = 0;
+    file->type = FD_NONE;
+    release(&file_table.lock);
 
-    if (ff.type == FD_PIPE) {
-        pipeclose(ff.pipe, ff.writable);
-    } else if (ff.type == FD_INODE || ff.type == FD_DEVICE) {
+    if (closed_file.type == FD_PIPE) {
+        pipeclose(closed_file.pipe, closed_file.is_writable);
+    } else if (closed_file.type == FD_INODE || closed_file.type == FD_DEVICE) {
         begin_op();
-        iput(ff.ip);
+        iput(closed_file.inode);
         end_op();
     }
 }
 
-// ファイルfのメタデータを取得する。
-// addrはstruct statを指すユーザ仮想アドレス。
-int filestat(struct file *f, uint64 addr)
+// ファイルのメタデータを読み出す。
+// status_addressはstruct statを指すユーザ仮想アドレス。
+int filestat(struct file *file, uint64 status_address)
 {
-    struct proc *p = myproc();
-    struct stat st;
+    struct proc *process = myproc();
+    struct stat file_status;
 
-    if (f->type == FD_INODE || f->type == FD_DEVICE) {
-        ilock(f->ip);
-        stati(f->ip, &st);
-        iunlock(f->ip);
-        if (copyout(p->pagetable, p->sz, addr, (char *)&st, sizeof(st)) < 0)
+    if (file->type == FD_INODE || file->type == FD_DEVICE) {
+        ilock(file->inode);
+        stati(file->inode, &file_status);
+        iunlock(file->inode);
+        if (copyout(process->pagetable, process->memory_size, status_address,
+                    (char *)&file_status, sizeof(file_status)) < 0)
             return -1;
         return 0;
     }
@@ -99,7 +100,7 @@ int fileread(struct file *file, uint64 destination_address, int byte_count)
 {
     int bytes_read = 0;
 
-    if (file->readable == 0 || byte_count < 0)
+    if (file->is_readable == 0 || byte_count < 0)
         return -1;
 
     if (file->type == FD_PIPE) {
@@ -109,10 +110,10 @@ int fileread(struct file *file, uint64 destination_address, int byte_count)
             return -1;
         bytes_read = devsw[file->major].read(1, destination_address, byte_count);
     } else if (file->type == FD_INODE) {
-        ilock(file->ip);
-        if ((bytes_read = readi(file->ip, 1, destination_address, file->off, byte_count)) > 0)
-            file->off += bytes_read;
-        iunlock(file->ip);
+        ilock(file->inode);
+        if ((bytes_read = readi(file->inode, 1, destination_address, file->offset, byte_count)) > 0)
+            file->offset += bytes_read;
+        iunlock(file->inode);
     } else {
         panic("fileread");
     }
@@ -126,7 +127,7 @@ int filewrite(struct file *file, uint64 source_address, int byte_count)
 {
     int bytes_written = 0;
 
-    if (file->writable == 0 || byte_count < 0)
+    if (file->is_writable == 0 || byte_count < 0)
         return -1;
 
     if (file->type == FD_PIPE) {
@@ -147,13 +148,13 @@ int filewrite(struct file *file, uint64 source_address, int byte_count)
                 transaction_byte_count = max_bytes_per_transaction;
 
             begin_op();
-            ilock(file->ip);
+            ilock(file->inode);
             int transaction_bytes_written =
-                writei(file->ip, 1, source_address + total_bytes_written,
-                       file->off, transaction_byte_count);
+                writei(file->inode, 1, source_address + total_bytes_written,
+                       file->offset, transaction_byte_count);
             if (transaction_bytes_written > 0)
-                file->off += transaction_bytes_written;
-            iunlock(file->ip);
+                file->offset += transaction_bytes_written;
+            iunlock(file->inode);
             end_op();
 
             if (transaction_bytes_written != transaction_byte_count) {

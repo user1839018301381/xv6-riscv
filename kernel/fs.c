@@ -23,81 +23,88 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 // ディスクデバイスごとにスーパーブロックが1つあるべきだが、
 // ここでは1つのデバイスだけを使う。
-struct superblock sb;
+struct superblock filesystem_superblock;
 
 // スーパーブロックを読み込む。
-static void readsb(int dev, struct superblock *sb)
+static void readsb(int device, struct superblock *superblock_out)
 {
-    struct buf *bp;
+    struct buf *buffer;
 
-    bp = bread(dev, 1);
-    memmove(sb, bp->data, sizeof(*sb));
-    brelse(bp);
+    buffer = bread(device, 1);
+    memmove(superblock_out, buffer->block_data, sizeof(*superblock_out));
+    brelse(buffer);
 }
 
 // ファイルシステムを初期化する。
-void fsinit(int dev)
+void fsinit(int device)
 {
-    readsb(dev, &sb);
-    if (sb.magic != FSMAGIC)
+    readsb(device, &filesystem_superblock);
+    if (filesystem_superblock.magic != FSMAGIC)
         panic("invalid file system");
-    initlog(dev, &sb);
-    ireclaim(dev);
+    initlog(device, &filesystem_superblock);
+    ireclaim(device);
 }
 
 // ブロックをゼロクリアする。
-static void bzero(int dev, int bno)
+static void bzero(int device, int block_number)
 {
-    struct buf *bp;
+    struct buf *buffer;
 
-    bp = bread(dev, bno);
-    memset(bp->data, 0, BSIZE);
-    log_write(bp);
-    brelse(bp);
+    buffer = bread(device, block_number);
+    memset(buffer->block_data, 0, BSIZE);
+    log_write(buffer);
+    brelse(buffer);
 }
 
 // ブロック。
 
 // ゼロクリアされたディスクブロックを割り当てる。
 // ディスク容量不足なら0を返す。
-static uint balloc(uint dev)
+static uint balloc(uint device)
 {
-    int b, bi, m;
-    struct buf *bp;
+    int base_block, bitmap_index, bitmap_mask;
+    struct buf *buffer;
 
-    bp = 0;
-    for (b = 0; b < sb.size; b += BPB) {
-        bp = bread(dev, BBLOCK(b, sb));
-        for (bi = 0; bi < BPB && b + bi < sb.size; bi++) {
-            m = 1 << (bi % 8);
-            if ((bp->data[bi / 8] & m) == 0) { // ブロックは空いているか?
-                bp->data[bi / 8] |= m;         // ブロックを使用中にする。
-                log_write(bp);
-                brelse(bp);
-                bzero(dev, b + bi);
-                return b + bi;
+    buffer = 0;
+    for (base_block = 0;
+         base_block < filesystem_superblock.total_block_count;
+         base_block += BPB) {
+        buffer = bread(device,
+                       BBLOCK(base_block, filesystem_superblock));
+        for (bitmap_index = 0;
+             bitmap_index < BPB &&
+             base_block + bitmap_index <
+                 filesystem_superblock.total_block_count;
+             bitmap_index++) {
+            bitmap_mask = 1 << (bitmap_index % 8);
+            if ((buffer->block_data[bitmap_index / 8] & bitmap_mask) == 0) {
+                buffer->block_data[bitmap_index / 8] |= bitmap_mask;
+                log_write(buffer);
+                brelse(buffer);
+                bzero(device, base_block + bitmap_index);
+                return base_block + bitmap_index;
             }
         }
-        brelse(bp);
+        brelse(buffer);
     }
     printk("balloc: out of blocks\n");
     return 0;
 }
 
 // ディスクブロックを解放する。
-static void bfree(int dev, uint b)
+static void bfree(int device, uint block_number)
 {
-    struct buf *bp;
-    int bi, m;
+    struct buf *buffer;
+    int bitmap_index, bitmap_mask;
 
-    bp = bread(dev, BBLOCK(b, sb));
-    bi = b % BPB;
-    m = 1 << (bi % 8);
-    if ((bp->data[bi / 8] & m) == 0)
+    buffer = bread(device, BBLOCK(block_number, filesystem_superblock));
+    bitmap_index = block_number % BPB;
+    bitmap_mask = 1 << (bitmap_index % 8);
+    if ((buffer->block_data[bitmap_index / 8] & bitmap_mask) == 0)
         panic("freeing free block");
-    bp->data[bi / 8] &= ~m;
-    log_write(bp);
-    brelse(bp);
+    buffer->block_data[bitmap_index / 8] &= ~bitmap_mask;
+    log_write(buffer);
+    brelse(buffer);
 }
 
 // inode。
@@ -107,13 +114,13 @@ static void bfree(int dev, uint b)
 // それを参照するリンク数、ファイル内容を保持するブロック一覧という
 // メタデータを持つ。
 //
-// inodeはsb.inodestartのブロックからディスク上に連続して配置される。
+// inodeはfilesystem_superblock.inodestartのブロックからディスク上に連続して配置される。
 // 各inodeはディスク上の位置を示す番号を持つ。
 //
 // カーネルは使用中inodeの表をメモリに保持し、
 // 複数プロセスが使うinodeへのアクセスを同期する場所を提供する。
 // メモリ上のinodeには、ディスクに保存されない管理情報
-// ip->refとip->validも含まれる。
+// inode->reference_countとinode->is_validも含まれる。
 //
 // inodeとそのメモリ上の表現は、残りのファイルシステムコードで
 // 使えるようになるまで一連の状態を経る。
@@ -121,252 +128,262 @@ static void bfree(int dev, uint b)
 // * 割り当て: ディスク上のtypeが0以外ならinodeは割り当て済みである。
 //   ialloc()が割り当て、参照数とリンク数が0になればiput()が解放する。
 //
-// * 表での参照: inode表のエントリはip->refが0なら空きである。
-//   それ以外ではip->refが、そのエントリへのメモリ上のポインタ
+// * 表での参照: inode表のエントリはinode->reference_countが0なら空きである。
+//   それ以外ではinode->reference_countが、そのエントリへのメモリ上のポインタ
 //   （オープン中のファイルと現在のディレクトリ）の数を追跡する。
 //   iget()は表のエントリを検索または作成してrefを増やし、iput()は減らす。
 //
-// * 有効: inode表エントリの情報（type、sizeなど）はip->validが1のときだけ正しい。
-//   ilock()はディスクからinodeを読み込んでip->validを設定し、
-//   iput()はip->refが0になったときip->validをクリアする。
+// * 有効: inode表エントリの情報（type、sizeなど）はinode->is_validが1のときだけ正しい。
+//   ilock()はディスクからinodeを読み込んでinode->is_validを設定し、
+//   iput()はinode->reference_countが0になったときinode->is_validをクリアする。
 //
 // * ロック済み: ファイルシステムコードは、最初にinodeをロックしてからでなければ
 //   inodeの情報や内容を調べたり変更したりできない。
 //
 // したがって典型的な手順は次のとおり:
-//   ip = iget(dev, inum)
-//   ilock(ip)
-//   ... ip->xxxを調べて変更 ...
-//   iunlock(ip)
-//   iput(ip)
+//   inode = iget(dev, inum)
+//   ilock(inode)
+//   ... inode->xxxを調べて変更 ...
+//   iunlock(inode)
+//   iput(inode)
 //
 // ilock()をiget()から分けることで、システムコールはinodeへの長期参照
 // （オープン中のファイルなど）を得たうえで、短時間だけロックできる
 // （read()など）。この分離はパス名検索中のデッドロックや競合の回避にも役立つ。
-// iget()はip->refを増やすので、inodeは表に残り、そのポインタは有効であり続ける。
+// iget()はinode->reference_countを増やすので、inodeは表に残り、そのポインタは有効であり続ける。
 //
 // 多くの内部ファイルシステム関数は、関係するinodeを呼び出し元が
 // ロック済みであることを期待する。これにより呼び出し元は
 // 複数段階のアトミックな操作を作れる。
 //
-// itable.lockスピンロックはitableエントリの割り当てを保護する。
-// ip->refはエントリが空きかを示し、ip->devとip->inumはエントリが
-// 保持するinodeを示すため、これらのフィールドを使う間はitable.lockを保持する。
+// inode_table.lockスピンロックはinode_tableエントリの割り当てを保護する。
+// inode->reference_countはエントリが空きかを示し、inode->deviceとinode->inode_numberはエントリが
+// 保持するinodeを示すため、これらのフィールドを使う間はinode_table.lockを保持する。
 //
-// ip->lockスリープロックはref、dev、inum以外のip->フィールドをすべて保護する。
-// inodeのip->valid、ip->size、ip->typeなどを読むか書くにはip->lockを保持する。
+// inode->lockスリープロックはref、dev、inum以外のinode->フィールドをすべて保護する。
+// inode->is_valid、inode->size、inode->typeなどを読むか書くにはinode->lockを保持する。
 
 struct {
     struct spinlock lock;
-    struct inode inode[NINODE];
-} itable;
+    struct inode inodes[NINODE];
+} inode_table;
 
 void iinit()
 {
     int i = 0;
 
-    initlock(&itable.lock, "itable");
+    initlock(&inode_table.lock, "inode_table");
     for (i = 0; i < NINODE; i++) {
-        initsleeplock(&itable.inode[i].lock, "inode");
+        initsleeplock(&inode_table.inodes[i].lock, "inode");
     }
 }
 
-static struct inode *iget(uint dev, uint inum);
+static struct inode *iget(uint device, uint inode_number);
 
 // デバイスdev上にinodeを割り当てる。
 // typeを設定して割り当て済みとする。
 // ロックされていないが割り当て済みで参照されているinodeを返し、
 // 空きinodeがなければNULLを返す。
-struct inode *ialloc(uint dev, short type)
+struct inode *ialloc(uint device, short inode_type)
 {
-    int inum;
-    struct buf *bp;
-    struct dinode *dip;
+    int inode_number;
+    struct buf *buffer;
+    struct dinode *disk_inode;
 
-    for (inum = 1; inum < sb.ninodes; inum++) {
-        bp = bread(dev, IBLOCK(inum, sb));
-        dip = (struct dinode *)bp->data + inum % IPB;
-        if (dip->type == 0) { // 空きinode
-            memset(dip, 0, sizeof(*dip));
-            dip->type = type;
-            log_write(bp); // ディスク上で割り当て済みにする
-            brelse(bp);
-            return iget(dev, inum);
+    for (inode_number = 1;
+         inode_number < filesystem_superblock.inode_count; inode_number++) {
+        buffer = bread(device,
+                       IBLOCK(inode_number, filesystem_superblock));
+        disk_inode = (struct dinode *)buffer->block_data + inode_number % IPB;
+        if (disk_inode->type == 0) { // 空きinode
+            memset(disk_inode, 0, sizeof(*disk_inode));
+            disk_inode->type = inode_type;
+            log_write(buffer); // ディスク上で割り当て済みにする
+            brelse(buffer);
+            return iget(device, inode_number);
         }
-        brelse(bp);
+        brelse(buffer);
     }
     printk("ialloc: no inodes\n");
     return 0;
 }
 
 // 変更されたメモリ上のinodeをディスクへ複写する。
-// ディスク上にも存在するip->xxxフィールドを変更するたびに呼ぶ。
-// 呼び出し元はip->lockを保持していなければならない。
-void iupdate(struct inode *ip)
+// ディスク上にも存在するinode->xxxフィールドを変更するたびに呼ぶ。
+// 呼び出し元はinode->lockを保持していなければならない。
+void iupdate(struct inode *inode)
 {
-    struct buf *bp;
-    struct dinode *dip;
+    struct buf *buffer;
+    struct dinode *disk_inode;
 
-    bp = bread(ip->dev, IBLOCK(ip->inum, sb));
-    dip = (struct dinode *)bp->data + ip->inum % IPB;
-    dip->type = ip->type;
-    dip->major = ip->major;
-    dip->minor = ip->minor;
-    dip->nlink = ip->nlink;
-    dip->size = ip->size;
-    memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
-    log_write(bp);
-    brelse(bp);
+    buffer = bread(inode->device, IBLOCK(inode->inode_number, filesystem_superblock));
+    disk_inode = (struct dinode *)buffer->block_data + inode->inode_number % IPB;
+    disk_inode->type = inode->type;
+    disk_inode->major = inode->major;
+    disk_inode->minor = inode->minor;
+    disk_inode->link_count = inode->link_count;
+    disk_inode->size = inode->size;
+    memmove(disk_inode->block_addresses, inode->block_addresses, sizeof(inode->block_addresses));
+    log_write(buffer);
+    brelse(buffer);
 }
 
 // デバイスdev上で番号inumのinodeを探し、メモリ上の複製を返す。
 // inodeをロックせず、ディスクからも読み込まない。
-static struct inode *iget(uint dev, uint inum)
+static struct inode *iget(uint device, uint inode_number)
 {
-    struct inode *ip, *empty;
+    struct inode *inode, *empty_slot;
 
-    acquire(&itable.lock);
+    acquire(&inode_table.lock);
 
     // inodeはすでに表にあるか?
-    empty = 0;
-    for (ip = &itable.inode[0]; ip < &itable.inode[NINODE]; ip++) {
-        if (ip->ref > 0 && ip->dev == dev && ip->inum == inum) {
-            ip->ref++;
-            release(&itable.lock);
-            return ip;
+    empty_slot = 0;
+    for (inode = &inode_table.inodes[0];
+         inode < &inode_table.inodes[NINODE]; inode++) {
+        if (inode->reference_count > 0 && inode->device == device &&
+            inode->inode_number == inode_number) {
+            inode->reference_count++;
+            release(&inode_table.lock);
+            return inode;
         }
-        if (empty == 0 && ip->ref == 0) // 空きスロットを記録する。
-            empty = ip;
+        if (empty_slot == 0 && inode->reference_count == 0)
+            empty_slot = inode;
     }
 
     // inodeエントリを再利用する。
-    if (empty == 0)
+    if (empty_slot == 0)
         panic("iget: no inodes");
 
-    ip = empty;
-    ip->dev = dev;
-    ip->inum = inum;
-    ip->ref = 1;
-    ip->valid = 0;
-    release(&itable.lock);
+    inode = empty_slot;
+    inode->device = device;
+    inode->inode_number = inode_number;
+    inode->reference_count = 1;
+    inode->is_valid = 0;
+    release(&inode_table.lock);
 
-    return ip;
+    return inode;
 }
 
-// ipの参照カウントを増やす。
-// ip = idup(ip1)という書き方ができるようipを返す。
-struct inode *idup(struct inode *ip)
+// inodeの参照カウントを増やす。
+// inode = idup(ip1)という書き方ができるようinodeを返す。
+struct inode *idup(struct inode *inode)
 {
-    acquire(&itable.lock);
-    ip->ref++;
-    release(&itable.lock);
-    return ip;
+    acquire(&inode_table.lock);
+    inode->reference_count++;
+    release(&inode_table.lock);
+    return inode;
 }
 
 // 指定されたinodeをロックする。
 // 必要ならディスクからinodeを読み込む。
-void ilock(struct inode *ip)
+void ilock(struct inode *inode)
 {
-    struct buf *bp;
-    struct dinode *dip;
+    struct buf *buffer;
+    struct dinode *disk_inode;
 
-    if (ip == 0 || ip->ref < 1)
+    if (inode == 0 || inode->reference_count < 1)
         panic("ilock");
 
-    acquiresleep(&ip->lock);
+    acquiresleep(&inode->lock);
 
-    if (ip->valid == 0) {
-        bp = bread(ip->dev, IBLOCK(ip->inum, sb));
-        dip = (struct dinode *)bp->data + ip->inum % IPB;
-        ip->type = dip->type;
-        ip->major = dip->major;
-        ip->minor = dip->minor;
-        ip->nlink = dip->nlink;
-        ip->size = dip->size;
-        memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
-        brelse(bp);
-        ip->valid = 1;
-        if (ip->type == 0)
+    if (inode->is_valid == 0) {
+        buffer = bread(inode->device, IBLOCK(inode->inode_number, filesystem_superblock));
+        disk_inode = (struct dinode *)buffer->block_data + inode->inode_number % IPB;
+        inode->type = disk_inode->type;
+        inode->major = disk_inode->major;
+        inode->minor = disk_inode->minor;
+        inode->link_count = disk_inode->link_count;
+        inode->size = disk_inode->size;
+        memmove(inode->block_addresses, disk_inode->block_addresses, sizeof(inode->block_addresses));
+        brelse(buffer);
+        inode->is_valid = 1;
+        if (inode->type == 0)
             panic("ilock: no type");
     }
 }
 
 // 指定されたinodeのロックを解除する。
-void iunlock(struct inode *ip)
+void iunlock(struct inode *inode)
 {
-    if (ip == 0 || !holdingsleep(&ip->lock) || ip->ref < 1)
+    if (inode == 0 || !holdingsleep(&inode->lock) || inode->reference_count < 1)
         panic("iunlock");
 
-    releasesleep(&ip->lock);
+    releasesleep(&inode->lock);
 }
 
 // ディスク上のinodeを空きにする。
-static void ifree(uint dev, uint inum)
+static void ifree(uint device, uint inode_number)
 {
-    struct buf *bp = bread(dev, IBLOCK(inum, sb));
-    struct dinode *dip = (struct dinode *)bp->data + inum % IPB;
-    dip->type = 0;
-    log_write(bp);
-    brelse(bp);
+    struct buf *buffer =
+        bread(device, IBLOCK(inode_number, filesystem_superblock));
+    struct dinode *disk_inode =
+        (struct dinode *)buffer->block_data + inode_number % IPB;
+    disk_inode->type = 0;
+    log_write(buffer);
+    brelse(buffer);
 }
 
 // メモリ上のinodeへの参照を1つ減らす。
 // 最後の参照ならinode表のエントリを再利用できる。
 // 最後の参照で、かつinodeへのリンクがなければ、ディスク上のinode（と内容）を解放する。
 // inodeを解放する可能性があるため、iput()の呼び出しはすべてトランザクション内で行う。
-void iput(struct inode *ip)
+void iput(struct inode *inode)
 {
-    acquire(&itable.lock);
+    acquire(&inode_table.lock);
 
     // リンクされていないinodeへの最後の参照か?
     // ref--の前にdev/inumを保存する。refが0になると、並行するiget()が
-    // 別のinum用にipを再利用する可能性があるためである。
-    int last = (ip->ref == 1 && ip->valid && ip->nlink == 0);
-    uint dev = ip->dev, inum = ip->inum;
+    // 別のinum用にinodeを再利用する可能性があるためである。
+    int is_last_reference =
+        (inode->reference_count == 1 && inode->is_valid && inode->link_count == 0);
+    uint device = inode->device, inode_number = inode->inode_number;
 
-    if (last) {
-        // ip->ref == 1なら、他のプロセスがipをロックしていることはない。
-        acquiresleep(&ip->lock);
-        release(&itable.lock);
+    if (is_last_reference) {
+        // inode->reference_count == 1なら、他のプロセスがinodeをロックしていることはない。
+        acquiresleep(&inode->lock);
+        release(&inode_table.lock);
 
-        itrunc(ip); // データブロックを解放する（ディスク上のtypeは0以外のまま）
-        ip->valid = 0;
+        itrunc(inode); // データブロックを解放する（ディスク上のtypeは0以外のまま）
+        inode->is_valid = 0;
 
-        releasesleep(&ip->lock);
+        releasesleep(&inode->lock);
 
-        acquire(&itable.lock);
+        acquire(&inode_table.lock);
     }
 
-    ip->ref--;
-    release(&itable.lock);
+    inode->reference_count--;
+    release(&inode_table.lock);
 
-    if (last)
-        ifree(dev, inum); // ディスク上のtypeを消し、inumを割り当て可能にする
+    if (is_last_reference)
+        ifree(device, inode_number);
 }
 
 // よく使う書き方: ロックを解除してからputする。
-void iunlockput(struct inode *ip)
+void iunlockput(struct inode *inode)
 {
-    iunlock(ip);
-    iput(ip);
+    iunlock(inode);
+    iput(inode);
 }
 
-void ireclaim(int dev)
+void ireclaim(int device)
 {
-    for (int inum = 1; inum < sb.ninodes; inum++) {
-        struct inode *ip = 0;
-        struct buf *bp = bread(dev, IBLOCK(inum, sb));
-        struct dinode *dip = (struct dinode *)bp->data + inum % IPB;
-        if (dip->type != 0 && dip->nlink == 0) { // 孤児inodeか
-            printk("ireclaim: orphaned inode %d\n", inum);
-            ip = iget(dev, inum);
+    for (int inode_number = 1;
+         inode_number < filesystem_superblock.inode_count; inode_number++) {
+        struct inode *inode = 0;
+        struct buf *buffer =
+            bread(device, IBLOCK(inode_number, filesystem_superblock));
+        struct dinode *disk_inode =
+            (struct dinode *)buffer->block_data + inode_number % IPB;
+        if (disk_inode->type != 0 && disk_inode->link_count == 0) { // 孤児inodeか
+            printk("ireclaim: orphaned inode %d\n", inode_number);
+            inode = iget(device, inode_number);
         }
-        brelse(bp);
-        if (ip) {
+        brelse(buffer);
+        if (inode) {
             begin_op();
-            ilock(ip);
-            iunlock(ip);
-            iput(ip);
+            ilock(inode);
+            iunlock(inode);
+            iput(inode);
             end_op();
         }
     }
@@ -375,220 +392,240 @@ void ireclaim(int dev)
 // inodeの内容
 //
 // 各inodeに関連付けられた内容（データ）はディスク上のブロックに保存される。
-// 最初のNDIRECT個のブロック番号はip->addrs[]に記録される。
-// 次のNINDIRECT個はip->addrs[NDIRECT]のブロックに記録される。
+// 最初のNDIRECT個のブロック番号はinode->block_addresses[]に記録される。
+// 次のNINDIRECT個はinode->block_addresses[NDIRECT]のブロックに記録される。
 
-// inode ipのn番目のブロックのディスクアドレスを返す。
+// inodeのblock_index番目のブロックのディスクアドレスを返す。
 // そのブロックがなければbmapが割り当てる。
 // ディスク容量不足なら0を返す。
-static uint bmap(struct inode *ip, uint bn)
+static uint bmap(struct inode *inode, uint block_index)
 {
-    uint addr, *a;
-    struct buf *bp;
+    uint block_address, *indirect_addresses;
+    struct buf *buffer;
 
-    if (bn < NDIRECT) {
-        if ((addr = ip->addrs[bn]) == 0) {
-            addr = balloc(ip->dev);
-            if (addr == 0)
+    if (block_index < NDIRECT) {
+        if ((block_address = inode->block_addresses[block_index]) == 0) {
+            block_address = balloc(inode->device);
+            if (block_address == 0)
                 return 0;
-            ip->addrs[bn] = addr;
+            inode->block_addresses[block_index] = block_address;
         }
-        return addr;
+        return block_address;
     }
-    bn -= NDIRECT;
+    block_index -= NDIRECT;
 
-    if (bn < NINDIRECT) {
+    if (block_index < NINDIRECT) {
         // 必要なら間接ブロックを割り当てて読み込む。
-        if ((addr = ip->addrs[NDIRECT]) == 0) {
-            addr = balloc(ip->dev);
-            if (addr == 0)
+        if ((block_address = inode->block_addresses[NDIRECT]) == 0) {
+            block_address = balloc(inode->device);
+            if (block_address == 0)
                 return 0;
-            ip->addrs[NDIRECT] = addr;
+            inode->block_addresses[NDIRECT] = block_address;
         }
-        bp = bread(ip->dev, addr);
-        a = (uint *)bp->data;
-        if ((addr = a[bn]) == 0) {
-            addr = balloc(ip->dev);
-            if (addr) {
-                a[bn] = addr;
-                log_write(bp);
+        buffer = bread(inode->device, block_address);
+        indirect_addresses = (uint *)buffer->block_data;
+        if ((block_address = indirect_addresses[block_index]) == 0) {
+            block_address = balloc(inode->device);
+            if (block_address) {
+                indirect_addresses[block_index] = block_address;
+                log_write(buffer);
             }
         }
-        brelse(bp);
-        return addr;
+        brelse(buffer);
+        return block_address;
     }
 
     panic("bmap: out of range");
 }
 
 // inodeを切り詰める（内容を破棄する）。
-// 呼び出し元はip->lockを保持していなければならない。
-void itrunc(struct inode *ip)
+// 呼び出し元はinode->lockを保持していなければならない。
+void itrunc(struct inode *inode)
 {
     int i, j;
-    struct buf *bp;
-    uint *a;
+    struct buf *buffer;
+    uint *indirect_addresses;
 
     for (i = 0; i < NDIRECT; i++) {
-        if (ip->addrs[i]) {
-            bfree(ip->dev, ip->addrs[i]);
-            ip->addrs[i] = 0;
+        if (inode->block_addresses[i]) {
+            bfree(inode->device, inode->block_addresses[i]);
+            inode->block_addresses[i] = 0;
         }
     }
 
-    if (ip->addrs[NDIRECT]) {
-        bp = bread(ip->dev, ip->addrs[NDIRECT]);
-        a = (uint *)bp->data;
+    if (inode->block_addresses[NDIRECT]) {
+        buffer = bread(inode->device, inode->block_addresses[NDIRECT]);
+        indirect_addresses = (uint *)buffer->block_data;
         for (j = 0; j < NINDIRECT; j++) {
-            if (a[j])
-                bfree(ip->dev, a[j]);
+            if (indirect_addresses[j])
+                bfree(inode->device, indirect_addresses[j]);
         }
-        brelse(bp);
-        bfree(ip->dev, ip->addrs[NDIRECT]);
-        ip->addrs[NDIRECT] = 0;
+        brelse(buffer);
+        bfree(inode->device, inode->block_addresses[NDIRECT]);
+        inode->block_addresses[NDIRECT] = 0;
     }
 
-    ip->size = 0;
-    iupdate(ip);
+    inode->size = 0;
+    iupdate(inode);
 }
 
 // inodeからstat情報を複写する。
-// 呼び出し元はip->lockを保持していなければならない。
-void stati(struct inode *ip, struct stat *st)
+// 呼び出し元はinode->lockを保持していなければならない。
+void stati(struct inode *inode, struct stat *file_status)
 {
-    st->dev = ip->dev;
-    st->ino = ip->inum;
-    st->type = ip->type;
-    st->nlink = ip->nlink;
-    st->size = ip->size;
+    file_status->device = inode->device;
+    file_status->inode_number = inode->inode_number;
+    file_status->type = inode->type;
+    file_status->link_count = inode->link_count;
+    file_status->size = inode->size;
 }
 
 // inodeからデータを読み込む。
-// 呼び出し元はip->lockを保持していなければならない。
-// user_dst==1ならdstはユーザ仮想アドレス、それ以外ならカーネルアドレスである。
-int readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
+// 呼び出し元はinode->lockを保持していなければならない。
+// destination_is_userなら複写先はユーザ仮想アドレスである。
+int readi(struct inode *inode, int destination_is_user,
+          uint64 destination_address, uint offset, uint byte_count)
 {
-    uint tot, m;
-    struct buf *bp;
+    uint total_bytes_read, chunk_byte_count;
+    struct buf *buffer;
 
-    if (off > ip->size || off + n < off)
+    if (offset > inode->size || offset + byte_count < offset)
         return 0;
-    if (off + n > ip->size)
-        n = ip->size - off;
+    if (offset + byte_count > inode->size)
+        byte_count = inode->size - offset;
 
-    for (tot = 0; tot < n; tot += m, off += m, dst += m) {
-        uint addr = bmap(ip, off / BSIZE);
-        if (addr == 0)
+    for (total_bytes_read = 0; total_bytes_read < byte_count;
+         total_bytes_read += chunk_byte_count, offset += chunk_byte_count,
+         destination_address += chunk_byte_count) {
+        uint block_address = bmap(inode, offset / BSIZE);
+        if (block_address == 0)
             break;
-        bp = bread(ip->dev, addr);
-        m = min(n - tot, BSIZE - off % BSIZE);
-        if (either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
-            brelse(bp);
-            tot = -1;
+        buffer = bread(inode->device, block_address);
+        chunk_byte_count = min(byte_count - total_bytes_read,
+                               BSIZE - offset % BSIZE);
+        if (either_copyout(destination_is_user, destination_address,
+                           buffer->block_data + (offset % BSIZE),
+                           chunk_byte_count) == -1) {
+            brelse(buffer);
+            total_bytes_read = -1;
             break;
         }
-        brelse(bp);
+        brelse(buffer);
     }
-    return tot;
+    return total_bytes_read;
 }
 
 // inodeへデータを書き込む。
-// 呼び出し元はip->lockを保持していなければならない。
-// user_src==1ならsrcはユーザ仮想アドレス、それ以外ならカーネルアドレスである。
+// 呼び出し元はinode->lockを保持していなければならない。
+// source_is_userなら複写元はユーザ仮想アドレスである。
 // 正常に書き込めたバイト数を返す。
-// 戻り値が要求したnより小さければ何らかのエラーがある。
-int writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
+// 戻り値が要求したbyte_countより小さければ何らかのエラーがある。
+int writei(struct inode *inode, int source_is_user, uint64 source_address,
+           uint offset, uint byte_count)
 {
-    uint tot, m;
-    struct buf *bp;
+    uint total_bytes_written, chunk_byte_count;
+    struct buf *buffer;
 
-    if (off > ip->size || off + n < off)
+    if (offset > inode->size || offset + byte_count < offset)
         return -1;
-    if (off + n > MAXFILE * BSIZE)
+    if (offset + byte_count > MAXFILE * BSIZE)
         return -1;
 
-    for (tot = 0; tot < n; tot += m, off += m, src += m) {
-        uint addr = bmap(ip, off / BSIZE);
-        if (addr == 0)
+    for (total_bytes_written = 0; total_bytes_written < byte_count;
+         total_bytes_written += chunk_byte_count, offset += chunk_byte_count,
+         source_address += chunk_byte_count) {
+        uint block_address = bmap(inode, offset / BSIZE);
+        if (block_address == 0)
             break;
-        bp = bread(ip->dev, addr);
-        m = min(n - tot, BSIZE - off % BSIZE);
-        if (either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
+        buffer = bread(inode->device, block_address);
+        chunk_byte_count = min(byte_count - total_bytes_written,
+                               BSIZE - offset % BSIZE);
+        if (either_copyin(buffer->block_data + (offset % BSIZE), source_is_user,
+                          source_address, chunk_byte_count) == -1) {
             // ブロックを部分的に更新した可能性があるため、ログに記録する必要がある。
-            log_write(bp);
-            brelse(bp);
+            log_write(buffer);
+            brelse(buffer);
             break;
         }
-        log_write(bp);
-        brelse(bp);
+        log_write(buffer);
+        brelse(buffer);
     }
 
-    if (off > ip->size)
-        ip->size = off;
+    if (offset > inode->size)
+        inode->size = offset;
 
     // サイズが変わらなくてもinodeをディスクへ書き戻す。
-    // 上のループがbmap()を呼んでip->addrs[]に新しいブロックを追加した可能性があるため。
-    iupdate(ip);
+    // 上のループがbmap()を呼んでinode->block_addresses[]に新しいブロックを追加した可能性があるため。
+    iupdate(inode);
 
-    return tot;
+    return total_bytes_written;
 }
 
 // ディレクトリ
 
-int namecmp(const char *s, const char *t) { return strncmp(s, t, DIRSIZ); }
+int namecmp(const char *left, const char *right)
+{
+    return strncmp(left, right, DIRSIZ);
+}
 
 // ディレクトリ内でディレクトリエントリを探す。
-// 見つかったら*poffにエントリのバイトオフセットを設定する。
-struct inode *dirlookup(struct inode *dp, char *name, uint *poff)
+// 見つかったら*offset_outにエントリのバイトオフセットを設定する。
+struct inode *dirlookup(struct inode *directory_inode, char *name,
+                        uint *offset_out)
 {
-    uint off, inum;
-    struct dirent de;
+    uint entry_offset, inode_number;
+    struct dirent entry;
 
-    if (dp->type != T_DIR)
+    if (directory_inode->type != T_DIR)
         panic("dirlookup not DIR");
 
-    for (off = 0; off < dp->size; off += sizeof(de)) {
-        if (readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+    for (entry_offset = 0; entry_offset < directory_inode->size;
+         entry_offset += sizeof(entry)) {
+        if (readi(directory_inode, 0, (uint64)&entry, entry_offset,
+                  sizeof(entry)) != sizeof(entry))
             panic("dirlookup read");
-        if (de.inum == 0)
+        if (entry.inode_number == 0)
             continue;
-        if (namecmp(name, de.name) == 0) {
+        if (namecmp(name, entry.name) == 0) {
             // エントリがパス要素に一致する
-            if (poff)
-                *poff = off;
-            inum = de.inum;
-            return iget(dp->dev, inum);
+            if (offset_out)
+                *offset_out = entry_offset;
+            inode_number = entry.inode_number;
+            return iget(directory_inode->device, inode_number);
         }
     }
 
     return 0;
 }
 
-// 新しいディレクトリエントリ(name, inum)をディレクトリdpへ書き込む。
+// 新しいディレクトリエントリをディレクトリへ書き込む。
 // 成功時は0、失敗時（ディスクブロック不足など）は-1を返す。
-int dirlink(struct inode *dp, char *name, uint inum)
+int dirlink(struct inode *directory_inode, char *name, uint inode_number)
 {
-    int off;
-    struct dirent de;
-    struct inode *ip;
+    int entry_offset;
+    struct dirent entry;
+    struct inode *existing_inode;
 
     // nameが存在しないことを確認する。
-    if ((ip = dirlookup(dp, name, 0)) != 0) {
-        iput(ip);
+    if ((existing_inode = dirlookup(directory_inode, name, 0)) != 0) {
+        iput(existing_inode);
         return -1;
     }
 
     // 空のdirentを探す。
-    for (off = 0; off < dp->size; off += sizeof(de)) {
-        if (readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+    for (entry_offset = 0; entry_offset < directory_inode->size;
+         entry_offset += sizeof(entry)) {
+        if (readi(directory_inode, 0, (uint64)&entry, entry_offset,
+                  sizeof(entry)) != sizeof(entry))
             panic("dirlink read");
-        if (de.inum == 0)
+        if (entry.inode_number == 0)
             break;
     }
 
-    strncpy(de.name, name, DIRSIZ);
-    de.inum = inum;
-    if (writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+    strncpy(entry.name, name, DIRSIZ);
+    entry.inode_number = inode_number;
+    if (writei(directory_inode, 0, (uint64)&entry, entry_offset,
+               sizeof(entry)) != sizeof(entry))
         return -1;
 
     return 0;
@@ -608,24 +645,24 @@ int dirlink(struct inode *dp, char *name, uint inum)
 //   skipelem("a", name) = "", name = "a"に設定
 //   skipelem("", name) = skipelem("////", name) = 0
 //
-static char *skipelem(char *path, char *name)
+static char *skip_path_element(char *path, char *name)
 {
-    char *s;
-    int len;
+    char *element_start;
+    int element_length;
 
     while (*path == '/')
         path++;
     if (*path == 0)
         return 0;
-    s = path;
+    element_start = path;
     while (*path != '/' && *path != 0)
         path++;
-    len = path - s;
-    if (len >= DIRSIZ)
-        memmove(name, s, DIRSIZ);
+    element_length = path - element_start;
+    if (element_length >= DIRSIZ)
+        memmove(name, element_start, DIRSIZ);
     else {
-        memmove(name, s, len);
-        name[len] = 0;
+        memmove(name, element_start, element_length);
+        name[element_length] = 0;
     }
     while (*path == '/')
         path++;
@@ -636,51 +673,52 @@ static char *skipelem(char *path, char *name)
 // parent != 0なら親のinodeを返し、最後のパス要素をnameへ複写する。
 // nameにはDIRSIZバイトの領域が必要である。
 // iput()を呼ぶため、トランザクション内で呼ばなければならない。
-static struct inode *namex(char *path, int nameiparent, char *name)
+static struct inode *resolve_path_inode(char *path, int should_return_parent,
+                                        char *name)
 {
-    struct inode *ip, *next;
+    struct inode *inode, *next_inode;
 
     if (*path == '/')
-        ip = iget(ROOTDEV, ROOTINO);
+        inode = iget(ROOTDEV, ROOTINO);
     else
-        ip = idup(myproc()->cwd);
+        inode = idup(myproc()->current_directory);
 
-    while ((path = skipelem(path, name)) != 0) {
-        ilock(ip);
-        if (ip->type != T_DIR) {
-            iunlockput(ip);
+    while ((path = skip_path_element(path, name)) != 0) {
+        ilock(inode);
+        if (inode->type != T_DIR) {
+            iunlockput(inode);
             return 0;
         }
-        if (ip->nlink == 0) {
-            iunlockput(ip);
+        if (inode->link_count == 0) {
+            iunlockput(inode);
             return 0;
         }
-        if (nameiparent && *path == '\0') {
+        if (should_return_parent && *path == '\0') {
             // 1レベル手前で止める。
-            iunlock(ip);
-            return ip;
+            iunlock(inode);
+            return inode;
         }
-        if ((next = dirlookup(ip, name, 0)) == 0) {
-            iunlockput(ip);
+        if ((next_inode = dirlookup(inode, name, 0)) == 0) {
+            iunlockput(inode);
             return 0;
         }
-        iunlockput(ip);
-        ip = next;
+        iunlockput(inode);
+        inode = next_inode;
     }
-    if (nameiparent) {
-        iput(ip);
+    if (should_return_parent) {
+        iput(inode);
         return 0;
     }
-    return ip;
+    return inode;
 }
 
 struct inode *namei(char *path)
 {
     char name[DIRSIZ];
-    return namex(path, 0, name);
+    return resolve_path_inode(path, 0, name);
 }
 
 struct inode *nameiparent(char *path, char *name)
 {
-    return namex(path, 1, name);
+    return resolve_path_inode(path, 1, name);
 }

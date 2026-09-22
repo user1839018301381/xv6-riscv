@@ -3,9 +3,9 @@
 #define T_DEVICE 3 // デバイス
 
 struct stat {
-    int dev;     // ファイルシステムのディスクデバイス
-    uint ino;    // inode番号
+    int device;  // ファイルシステムのディスクデバイス
+    uint inode_number;
     short type;  // ファイル種別
-    short nlink; // ファイルへのリンク数
+    short link_count;
     uint64 size; // ファイルサイズ（バイト）
 };

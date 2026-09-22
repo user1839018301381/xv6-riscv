@@ -9,9 +9,9 @@
 
 uint64 sys_exit(void)
 {
-    int n;
-    argint(0, &n);
-    kexit(n);
+    int exit_status;
+    argint(0, &exit_status);
+    kexit(exit_status);
     return 0; // ここには到達しない
 }
 
@@ -21,50 +21,50 @@ uint64 sys_fork(void) { return kfork(); }
 
 uint64 sys_wait(void)
 {
-    uint64 p;
-    argaddr(0, &p);
-    return kwait(p);
+    uint64 status_address;
+    argaddr(0, &status_address);
+    return kwait(status_address);
 }
 
 uint64 sys_sbrk(void)
 {
-    uint64 addr;
-    int t;
-    int n;
+    uint64 previous_size;
+    int allocation_mode;
+    int size_delta;
 
-    argint(0, &n);
-    argint(1, &t);
-    addr = myproc()->sz;
+    argint(0, &size_delta);
+    argint(1, &allocation_mode);
+    previous_size = myproc()->memory_size;
 
-    if (t == SBRK_EAGER || n < 0) {
-        if (growproc(n) < 0) {
+    if (allocation_mode == SBRK_EAGER || size_delta < 0) {
+        if (growproc(size_delta) < 0) {
             return -1;
         }
     } else {
         // このプロセスのメモリを遅延割り当てする。
         // メモリサイズだけ増やし、メモリ自体は割り当てない。
         // プロセスがそのメモリを使うとvmfault()が割り当てる。
-        if (addr + n < addr)
+        if (previous_size + size_delta < previous_size)
             return -1;
-        if (addr + n > TRAPFRAME)
+        if (previous_size + size_delta > TRAPFRAME)
             return -1;
-        myproc()->sz += n;
+        myproc()->memory_size += size_delta;
     }
-    return addr;
+    return previous_size;
 }
 
 uint64 sys_pause(void)
 {
-    int n;
-    uint ticks0;
+    int tick_count;
+    uint start_ticks;
 
-    argint(0, &n);
-    if (n < 0)
-        n = 0;
+    argint(0, &tick_count);
+    if (tick_count < 0)
+        tick_count = 0;
     acquire(&tickslock);
-    ticks0 = ticks;
-    while (ticks - ticks0 < n) {
-        if (killed(myproc())) {
+    start_ticks = ticks;
+    while (ticks - start_ticks < tick_count) {
+        if (is_killed(myproc())) {
             release(&tickslock);
             return -1;
         }
@@ -88,10 +88,10 @@ uint64 sys_kill(void)
 // 起動後に発生したクロック割り込みの回数を返す。
 uint64 sys_uptime(void)
 {
-    uint xticks;
+    uint uptime_ticks;
 
     acquire(&tickslock);
-    xticks = ticks;
+    uptime_ticks = ticks;
     release(&tickslock);
-    return xticks;
+    return uptime_ticks;
 }

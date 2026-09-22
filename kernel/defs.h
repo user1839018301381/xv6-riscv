@@ -12,131 +12,138 @@ struct superblock;
 
 // bio.c（バッファ入出力・ブロックキャッシュ）
 void            binit(void);
-struct buf*     bread(uint, uint);
-void            brelse(struct buf*);
-void            bwrite(struct buf*);
-void            bpin(struct buf*);
-void            bunpin(struct buf*);
+struct buf*     bread(uint device, uint block_number);
+void            brelse(struct buf *buffer);
+void            bwrite(struct buf *buffer);
+void            bpin(struct buf *buffer);
+void            bunpin(struct buf *buffer);
 
 // console.c（コンソール入出力）
 void            consoleinit(void);
-void            consoleintr(int);
-void            consputc(int);
+void            consoleintr(int character);
+void            consputc(int character);
 
 // exec.c（プログラムの実行）
-int             kexec(char*, char**);
+int             kexec(char *path, char **argv);
 
 // file.c（ファイル記述子の操作）
 struct file*    filealloc(void);
-void            fileclose(struct file*);
-struct file*    filedup(struct file*);
+void            fileclose(struct file *file);
+struct file*    filedup(struct file *file);
 void            fileinit(void);
 int             fileread(struct file *file, uint64 destination_address, int byte_count);
-int             filestat(struct file*, uint64 addr);
+int             filestat(struct file *file, uint64 status_address);
 int             filewrite(struct file *file, uint64 source_address, int byte_count);
 
 // fs.c（ファイルシステム）
-void            fsinit(int);
-int             dirlink(struct inode*, char*, uint);
-struct inode*   dirlookup(struct inode*, char*, uint*);
-struct inode*   ialloc(uint, short);
-struct inode*   idup(struct inode*);
-void            iinit();
-void            ilock(struct inode*);
-void            iput(struct inode*);
-void            iunlock(struct inode*);
-void            iunlockput(struct inode*);
-void            iupdate(struct inode*);
-int             namecmp(const char*, const char*);
-struct inode*   namei(char*);
-struct inode*   nameiparent(char*, char*);
-int             readi(struct inode*, int, uint64, uint, uint);
-void            stati(struct inode*, struct stat*);
-int             writei(struct inode*, int, uint64, uint, uint);
-void            itrunc(struct inode*);
-void            ireclaim(int);
+void            fsinit(int device);
+int             dirlink(struct inode *directory_inode, char *name,
+                        uint inode_number);
+struct inode*   dirlookup(struct inode *directory_inode, char *name,
+                          uint *offset_out);
+struct inode*   ialloc(uint device, short inode_type);
+struct inode*   idup(struct inode *inode);
+void            iinit(void);
+void            ilock(struct inode *inode);
+void            iput(struct inode *inode);
+void            iunlock(struct inode *inode);
+void            iunlockput(struct inode *inode);
+void            iupdate(struct inode *inode);
+int             namecmp(const char *left, const char *right);
+struct inode*   namei(char *path);
+struct inode*   nameiparent(char *path, char *name);
+int             readi(struct inode *inode, int destination_is_user,
+                      uint64 destination_address, uint offset, uint byte_count);
+void            stati(struct inode *inode, struct stat *file_status);
+int             writei(struct inode *inode, int source_is_user,
+                       uint64 source_address, uint offset, uint byte_count);
+void            itrunc(struct inode *inode);
+void            ireclaim(int device);
 
 // kalloc.c（物理ページ割当て）
 void*           kalloc(void);
-void            kfree(void *);
+void            kfree(void *page_address);
 void            kinit(void);
 
 // log.c（ファイルシステムログ）
-void            initlog(int, struct superblock*);
-void            log_write(struct buf*);
+void            initlog(int device, struct superblock *superblock);
+void            log_write(struct buf *buffer);
 void            begin_op(void);
 void            end_op(void);
 
 // pipe.c（パイプ）
-int             pipealloc(struct file**, struct file**);
-void            pipeclose(struct pipe*, int);
-int             piperead(struct pipe*, uint64, int);
-int             pipewrite(struct pipe*, uint64, int);
+int             pipealloc(struct file **read_file_out, struct file **write_file_out);
+void            pipeclose(struct pipe *pipe, int is_writable);
+int             piperead(struct pipe *pipe, uint64 destination_address, int byte_count);
+int             pipewrite(struct pipe *pipe, uint64 source_address, int byte_count);
 
 // printk.c（カーネル用表示・異常終了処理）
-int             printk(char*, ...) __attribute__ ((format (printf, 1, 2)));
-void            panic(char*) 2((noreturn));
+int             printk(char *format, ...) __attribute__ ((format (printf, 1, 2)));
+void            panic(char *message) 2((noreturn));
 void            printkinit(void);
 
 // proc.c（プロセス管理）
 int             cpuid(void);
-void            kexit(int);
+void            kexit(int exit_status);
 int             kfork(void);
-int             growproc(int);
-void            proc_mapstacks(pagetable_t);
-pagetable_t     proc_pagetable(struct proc *);
-void            proc_freepagetable(pagetable_t, uint64);
-int             kkill(int);
-int             killed(struct proc*);
-void            setkilled(struct proc*);
+int             growproc(int size_delta);
+void            proc_mapstacks(pagetable_t kernel_pagetable);
+pagetable_t     proc_pagetable(struct proc *process);
+void            proc_freepagetable(pagetable_t pagetable, uint64 memory_size);
+int             kkill(int pid);
+int             is_killed(struct proc *process);
+void            mark_killed(struct proc *process);
 struct cpu*     mycpu(void);
-struct proc*    myproc();
+struct proc*    myproc(void);
 void            procinit(void);
 void            scheduler(void) __attribute__((noreturn));
 void            sched(void);
-void            sleep_prepare(void*);
+void            sleep_prepare(void *channel);
 void            sleep(void);
 void            userinit(void);
-int             kwait(uint64);
-void            wakeup(void*);
+int             kwait(uint64 status_address);
+void            wakeup(void *channel);
 void            yield(void);
-int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
-int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
+int             either_copyout(int destination_is_user, uint64 destination_address,
+                               void *source, uint64 byte_count);
+int             either_copyin(void *destination, int source_is_user,
+                              uint64 source_address, uint64 byte_count);
 void            procdump(void);
 
 // swtch.S（コンテキスト切替えのアセンブリ）
-void            swtch(struct context*, struct context*);
+void            swtch(struct context *old_context,
+                      struct context *new_context);
 
 // spinlock.c（スピンロック）
-void            acquire(struct spinlock*);
-int             holding(struct spinlock*);
-void            initlock(struct spinlock*, char*);
-void            release(struct spinlock*);
+void            acquire(struct spinlock *lock);
+int             holding(struct spinlock *lock);
+void            initlock(struct spinlock *lock, char *name);
+void            release(struct spinlock *lock);
 void            push_off(void);
 void            pop_off(void);
 
 // sleeplock.c（スリープロック）
-void            acquiresleep(struct sleeplock*);
-void            releasesleep(struct sleeplock*);
-int             holdingsleep(struct sleeplock*);
-void            initsleeplock(struct sleeplock*, char*);
+void            acquiresleep(struct sleeplock *lock);
+void            releasesleep(struct sleeplock *lock);
+int             holdingsleep(struct sleeplock *lock);
+void            initsleeplock(struct sleeplock *lock, char *name);
 
 // string.c（文字列・メモリ操作）
-int             memcmp(const void*, const void*, uint);
-void*           memmove(void*, const void*, uint);
-void*           memset(void*, int, uint);
-char*           safestrcpy(char*, const char*, int);
-int             strlen(const char*);
-int             strncmp(const char*, const char*, uint);
-char*           strncpy(char*, const char*, int);
+int             memcmp(const void *left, const void *right, uint byte_count);
+void*           memmove(void *destination, const void *source, uint byte_count);
+void*           memset(void *destination, int value, uint byte_count);
+char*           safestrcpy(char *destination, const char *source, int destination_size);
+int             strlen(const char *string);
+int             strncmp(const char *left, const char *right, uint max_length);
+char*           strncpy(char *destination, const char *source, int max_length);
 
 // syscall.c（システムコール処理）
-void            argint(int, int*);
-int             argstr(int, char*, int);
-void            argaddr(int, uint64 *);
-int             fetchstr(uint64, char*, int);
-int             fetchaddr(uint64, uint64*);
-void            syscall();
+void            argint(int argument_index, int *value_out);
+int             argstr(int argument_index, char *buffer, int max_length);
+void            argaddr(int argument_index, uint64 *address_out);
+int             fetchstr(uint64 address, char *buffer, int max_length);
+int             fetchaddr(uint64 address, uint64 *value_out);
+void            syscall(void);
 
 // trap.c（トラップ処理）
 extern uint     ticks;
@@ -148,38 +155,49 @@ void            prepare_return(void);
 // uart.c（UARTドライバ）
 void            uartinit(void);
 void            uartintr(void);
-void            uartwrite(char [], int);
-void            uartputc_sync(int);
+void            uartwrite(char buffer[], int byte_count);
+void            uartputc_sync(int character);
 
 // vm.c（仮想メモリ）
 void            kvminit(void);
 void            kvminithart(void);
-void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
-int             mappages(pagetable_t, uint64, uint64, uint64, int);
+void            kvmmap(pagetable_t pagetable, uint64 virtual_address,
+                       uint64 physical_address, uint64 byte_count, int permissions);
+int             mappages(pagetable_t pagetable, uint64 va, uint64 size,
+                         uint64 pa, int permissions);
 pagetable_t     uvmcreate(void);
-uint64          uvmalloc(pagetable_t, uint64, uint64, int);
-uint64          uvmdealloc(pagetable_t, uint64, uint64);
-int             uvmcopy(pagetable_t, pagetable_t, uint64);
-void            uvmfree(pagetable_t, uint64);
-void            uvmunmap(pagetable_t, uint64, uint64, int);
-void            uvmclear(pagetable_t, uint64);
-pte_t *         walk(pagetable_t, uint64, int);
-uint64          walkaddr(pagetable_t, uint64);
-int             copyout(pagetable_t, uint64, uint64, char *, uint64);
-int             copyin(pagetable_t, uint64, char *, uint64, uint64);
-int             copyinstr(pagetable_t, uint64, char *, uint64, uint64);
-int             ismapped(pagetable_t, uint64);
-uint64          vmfault(pagetable_t, uint64, uint64, int);
+uint64          uvmalloc(pagetable_t pagetable, uint64 old_size,
+                         uint64 new_size, int extra_permissions);
+uint64          uvmdealloc(pagetable_t pagetable, uint64 old_size,
+                           uint64 new_size);
+int             uvmcopy(pagetable_t parent_pagetable,
+                        pagetable_t child_pagetable, uint64 memory_size);
+void            uvmfree(pagetable_t pagetable, uint64 memory_size);
+void            uvmunmap(pagetable_t pagetable, uint64 va, uint64 page_count,
+                         int should_free_physical_pages);
+void            uvmclear(pagetable_t pagetable, uint64 va);
+pte_t *         walk(pagetable_t pagetable, uint64 va, int should_allocate);
+uint64          walkaddr(pagetable_t pagetable, uint64 va);
+int             copyout(pagetable_t pagetable, uint64 process_size,
+                        uint64 destination_va, char *source, uint64 byte_count);
+int             copyin(pagetable_t pagetable, uint64 process_size,
+                       char *destination, uint64 source_va, uint64 byte_count);
+int             copyinstr(pagetable_t pagetable, uint64 process_size,
+                          char *destination, uint64 source_va,
+                          uint64 max_length);
+int             is_mapped(pagetable_t pagetable, uint64 va);
+uint64          vmfault(pagetable_t pagetable, uint64 process_size,
+                        uint64 va, int access_is_read);
 
 // plic.c（割り込みコントローラ）
 void            plicinit(void);
 void            plicinithart(void);
 int             plic_claim(void);
-void            plic_complete(int);
+void            plic_complete(int interrupt_id);
 
 // virtio_disk.c（virtioディスクドライバ）
 void            virtio_disk_init(void);
-void            virtio_disk_rw(struct buf *, int);
+void            virtio_disk_rw(struct buf *buffer, int is_write);
 void            virtio_disk_intr(void);
 
 // 固定長配列の要素数
