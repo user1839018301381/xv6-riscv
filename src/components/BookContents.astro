@@ -1,0 +1,32 @@
+---
+import { chapterPath, sectionPath } from '../../scripts/lib/config.ts';
+import type { BookTocChapter } from '../../scripts/lib/book-sections.ts';
+
+interface Props {
+  chapters: BookTocChapter[];
+  currentChapter?: number;
+  currentSection?: number;
+}
+
+const { chapters, currentChapter, currentSection } = Astro.props;
+---
+
+<nav class="book-contents" aria-label="書籍の目次">
+  <ol>
+    {chapters.map((chapter) => (
+      <li>
+        <a class="book-contents__chapter" href={chapterPath(chapter.chapter)} aria-current={currentChapter === chapter.chapter && currentSection === undefined ? 'page' : undefined}>
+          {chapter.chapter > 0 && <strong>{chapter.chapter}</strong>}
+          <span>{chapter.title}</span>
+        </a>
+        {currentChapter === chapter.chapter && chapter.sections.length > 0 && (
+          <ol class="book-contents__sections">
+            {chapter.sections.map((section) => (
+              <li><a href={sectionPath(chapter.chapter, section.number)} aria-current={currentSection === section.number ? 'page' : undefined}><strong>{chapter.chapter}.{section.number}</strong><span>{section.title}</span></a></li>
+            ))}
+          </ol>
+        )}
+      </li>
+    ))}
+  </ol>
+</nav>

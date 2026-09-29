@@ -1,0 +1,42 @@
+---
+import { getCollection } from 'astro:content';
+import BookFrame from '../../../components/BookFrame.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { chapterPath, sectionPath } from '../../../../scripts/lib/config.ts';
+import { bookToc, linkBookSections, splitBookChapter } from '../../../../scripts/lib/book-sections.ts';
+
+export async function getStaticPaths() {
+  const entries = (await getCollection('bookJa')).sort((a, b) => a.data.chapter - b.data.chapter);
+  const chapters = linkBookSections(entries.map(splitBookChapter));
+  const toc = bookToc(chapters);
+  return chapters.flatMap((chapter, chapterIndex) => chapter.sections.slice(1).map((section, index) => ({
+    params: { chapter: `chapter-${chapter.chapter}`, section: `section-${section.number}` },
+    props: {
+      entry: entries[chapterIndex], chapter, section, toc,
+      previous: chapter.sections[index],
+      next: chapter.sections[index + 2],
+      nextChapter: chapters[chapterIndex + 1]
+    }
+  })));
+}
+
+const { entry, chapter, section, toc, previous, next, nextChapter } = Astro.props;
+const previousUrl = previous.number === 0 ? chapterPath(chapter.chapter) : sectionPath(chapter.chapter, previous.number);
+const nextPage = next
+  ? { href: sectionPath(chapter.chapter, next.number), label: `${chapter.chapter}.${next.number} ${next.title}` }
+  : nextChapter && { href: chapterPath(nextChapter.chapter), label: `第${nextChapter.chapter}章 ${nextChapter.title}` };
+---
+
+<BaseLayout title={`${chapter.chapter}.${section.number} ${section.title}`} description={`xv6 book 第${chapter.chapter}章 ${section.title}`} lang="ja" bookStyle>
+  <BookFrame chapters={toc} currentChapter={chapter.chapter} currentSection={section.number} previous={{ href: previousUrl, label: previous.number === 0 ? `第${chapter.chapter}章 ${chapter.title}` : `${chapter.chapter}.${previous.number} ${previous.title}` }} next={nextPage}>
+    <article class="book-reader">
+    <header class="book-heading">
+      <h1 id={section.headingId}><span>{chapter.chapter}.{section.number}</span> {section.title}</h1>
+    </header>
+
+    <div class="prose book-prose" set:html={section.html} />
+
+    <p class="book-source"><a href={`https://github.com/mit-pdos/xv6-riscv-book/tree/${entry.data.commit}`}>原典: xv6-riscv-book</a></p>
+    </article>
+  </BookFrame>
+</BaseLayout>

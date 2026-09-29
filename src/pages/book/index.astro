@@ -1,16 +1,20 @@
 ---
 import { getCollection } from 'astro:content';
+import BookFrame from '../../components/BookFrame.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { chapterPath } from '../../../scripts/lib/config.ts';
+import { bookToc, splitBookChapter } from '../../../scripts/lib/book-sections.ts';
 
-const chapters = (await getCollection('book')).sort((a, b) => a.data.chapter - b.data.chapter);
+const chapters = (await getCollection('bookJa')).sort((a, b) => a.data.chapter - b.data.chapter);
+const toc = bookToc(chapters.map(splitBookChapter));
 ---
 
-<BaseLayout title="Book" description="The official xv6 book, converted from its source repository into readable local Markdown.">
-  <div class="index-shell">
+<BaseLayout title="Book" description="公式 xv6 book の日本語版。" lang="ja" bookStyle>
+  <BookFrame chapters={toc}>
+    <div class="index-shell book-index">
     <header class="index-heading">
       <h1>The xv6 book</h1>
-      <p>The official source, converted chapter by chapter into local Markdown with figures, code, mathematics, and references kept in place.</p>
+      <p>xv6 のしくみを章ごとに読む。</p>
     </header>
 
     <nav class="collection-links" aria-label="Book chapters">
@@ -18,9 +22,9 @@ const chapters = (await getCollection('book')).sort((a, b) => a.data.chapter - b
         <a class="collection-link" href={chapterPath(chapter.data.chapter)}>
           <span class="collection-link__number">{String(chapter.data.chapter).padStart(2, '0')}</span>
           <strong>{chapter.data.title}</strong>
-          <span class="collection-link__meta">Chapter {chapter.data.chapter}</span>
         </a>
       ))}
     </nav>
-  </div>
+    </div>
+  </BookFrame>
 </BaseLayout>

@@ -92,6 +92,7 @@ void kvminithart()
 //   21..29 -- レベル1の添字、9ビット。
 //   12..20 -- レベル0の添字、9ビット。
 //    0..11 -- ページ内のバイトオフセット、12ビット。
+// va ->一番下のページテーブルのPTEのアドレスを返す
 pte_t *walk(pagetable_t pagetable, uint64 va, int should_allocate)
 {
     if (va >= MAXVA)
@@ -133,9 +134,13 @@ uint64 walkaddr(pagetable_t pagetable, uint64 va)
     return pa;
 }
 
-// vaから始まる仮想アドレス用に、paから始まる物理アドレスを参照するPTEを作る。
-// vaとsizeはページ境界に揃っていなければならない。
-// 成功時は0、walk()が必要なページテーブルページを割り当てられなければ-1を返す。
+// 仮想アドレス va から size バイトの範囲を、
+// 物理アドレス pa から始まる連続した物理ページに対応付ける。
+// 各ページの最終段PTEを作成し、permissions と PTE_V を設定する。
+//
+// va と size は PGSIZE（4 KiB）の倍数でなければならない。
+// 必要なページテーブルを walk() が確保できなかった場合は -1、
+// 成功した場合は 0 を返す。
 int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa,
              int permissions)
 {

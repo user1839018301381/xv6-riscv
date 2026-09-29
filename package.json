@@ -13,6 +13,7 @@
     "sync:book": "tsx scripts/sync-book.ts",
     "sync": "npm run sync:labs && npm run sync:book",
     "translate:ja": "tsx scripts/translate-ja.ts",
+    "polish:book-ja": "tsx scripts/polish-book-ja.ts",
     "test": "tsx --test tests/**/*.test.ts",
     "check": "astro check"
   },

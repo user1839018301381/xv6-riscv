@@ -11,31 +11,33 @@ interface Props {
   title: string;
   description?: string;
   lang?: string;
+  minimalHeader?: boolean;
+  bookStyle?: boolean;
 }
 
-const { title, description = 'A local reader for MIT 6.1810 Labs and the xv6 book.', lang = 'en' } = Astro.props;
+const { title, description = 'A local reader for MIT 6.1810 Labs and the xv6 book.', lang = 'en', minimalHeader = false, bookStyle = false } = Astro.props;
 const pageTitle = title === 'xv6 Reader' ? title : `${title} · xv6 Reader`;
 ---
 
 <!doctype html>
-<html lang={lang}>
+<html lang={lang} data-theme={bookStyle ? 'dark' : undefined}>
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content={description}>
-    <meta name="color-scheme" content="light dark">
+    <meta name="color-scheme" content={bookStyle ? 'dark' : 'light dark'}>
     <title>{pageTitle}</title>
-    <script is:inline>
+    {!bookStyle && <script is:inline>
       (() => {
         const saved = localStorage.getItem('xv6-reader-theme');
         if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved;
       })();
-    </script>
+    </script>}
   </head>
-  <body>
+  <body class:list={{ 'book-minimal': minimalHeader, 'book-docs-page': bookStyle }}>
     <a class="skip-link" href="#main-content">Skip to content</a>
-    <Header />
+    {!bookStyle && <Header minimal={minimalHeader} />}
     <main id="main-content"><slot /></main>
-    <script is:inline src="/reader.js"></script>
+    {!minimalHeader && !bookStyle && <script is:inline src="/reader.js"></script>}
   </body>
 </html>

@@ -1,0 +1,44 @@
+---
+import BookContents from './BookContents.astro';
+import type { BookTocChapter } from '../../scripts/lib/book-sections.ts';
+
+interface Props {
+  chapters: BookTocChapter[];
+  currentChapter?: number;
+  currentSection?: number;
+  previous?: { href: string; label: string };
+  next?: { href: string; label: string };
+}
+
+const { chapters, currentChapter, currentSection, previous, next } = Astro.props;
+---
+
+<div class="book-docs">
+  <aside class="book-docs__sidebar">
+    <a class="book-docs__title" href="/book/">xv6: a simple, Unix-like teaching operating system</a>
+    <BookContents chapters={chapters} currentChapter={currentChapter} currentSection={currentSection} />
+  </aside>
+
+  <div class="book-docs__main">
+    <div class="book-docs__toolbar">
+      <details class="book-docs__mobile-menu">
+        <summary>目次</summary>
+        <BookContents chapters={chapters} currentChapter={currentChapter} currentSection={currentSection} />
+      </details>
+      <a class="book-docs__toolbar-title" href="/book/">xv6 book</a>
+      <a class="book-docs__labs" href="/labs/">Labs</a>
+    </div>
+
+    <div class="book-docs__paper">
+      {previous && <a class="book-docs__arrow book-docs__arrow--previous" href={previous.href} aria-label={`前へ: ${previous.label}`} title={previous.label}>‹</a>}
+      <div class="book-docs__body">
+        <slot />
+        {(previous || next) && <nav class="book-docs__mobile-pager" aria-label="前後のページ">
+          {previous ? <a href={previous.href}>‹ <span>{previous.label}</span></a> : <span />}
+          {next && <a href={next.href}><span>{next.label}</span> ›</a>}
+        </nav>}
+      </div>
+      {next && <a class="book-docs__arrow book-docs__arrow--next" href={next.href} aria-label={`次へ: ${next.label}`} title={next.label}>›</a>}
+    </div>
+  </div>
+</div>

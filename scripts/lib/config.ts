@@ -56,6 +56,10 @@ export function chapterPath(chapter: number): string {
   return `/book/chapter-${chapter}/`;
 }
 
+export function sectionPath(chapter: number, section: number): string {
+  return `${chapterPath(chapter)}section-${section}/`;
+}
+
 export function slugifyHeading(input: string): string {
   const normalized = input
     .normalize('NFKD')

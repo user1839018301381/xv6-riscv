@@ -1,60 +1,49 @@
 ---
-import { getCollection, render } from 'astro:content';
-import ArticleToc from '../../components/ArticleToc.astro';
-import NavigationRail from '../../components/NavigationRail.astro';
-import SourceMeta from '../../components/SourceMeta.astro';
+import { getCollection } from 'astro:content';
+import BookFrame from '../../components/BookFrame.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { chapterPath } from '../../../scripts/lib/config.ts';
+import { chapterPath, sectionPath } from '../../../scripts/lib/config.ts';
+import { bookToc, linkBookSections, splitBookChapter } from '../../../scripts/lib/book-sections.ts';
 
 export async function getStaticPaths() {
-  const chapters = (await getCollection('book')).sort((a, b) => a.data.chapter - b.data.chapter);
-  const chaptersJa = (await getCollection('bookJa')).sort((a, b) => a.data.chapter - b.data.chapter);
-  return chaptersJa.map((entry, index) => ({
+  const entries = (await getCollection('bookJa')).sort((a, b) => a.data.chapter - b.data.chapter);
+  const chapters = linkBookSections(entries.map(splitBookChapter));
+  const toc = bookToc(chapters);
+  return entries.map((entry, index) => ({
     params: { chapter: `chapter-${entry.data.chapter}` },
-    props: { entry, chapters, chaptersJa, index }
+    props: { entry, chapter: chapters[index], toc, previousChapter: chapters[index - 1], nextChapter: chapters[index + 1] }
   }));
 }
 
-const { entry, chapters, chaptersJa, index } = Astro.props;
-const { Content, headings } = await render(entry);
-const outline = headings
-  .filter((heading) => heading.depth === 2 || heading.depth === 3)
-  .map((heading) => ({ depth: heading.depth, id: heading.slug, text: heading.text }));
-const railItems = chapters.map((chapter) => ({
-  href: chapterPath(chapter.data.chapter),
-  label: chapter.data.title,
-  number: String(chapter.data.chapter).padStart(2, '0')
-}));
-const previous = index > 0 ? chaptersJa[index - 1] : undefined;
-const next = index < chaptersJa.length - 1 ? chaptersJa[index + 1] : undefined;
-const repository = 'https://github.com/mit-pdos/xv6-riscv-book';
+const { entry, chapter, toc, previousChapter, nextChapter } = Astro.props;
+const firstSection = chapter.sections[1];
+const next = firstSection
+  ? { href: sectionPath(chapter.chapter, firstSection.number), label: `${chapter.chapter}.${firstSection.number} ${firstSection.title}` }
+  : nextChapter && { href: chapterPath(nextChapter.chapter), label: `第${nextChapter.chapter}章 ${nextChapter.title}` };
 ---
 
-<BaseLayout title={entry.data.title} description={`Chapter ${entry.data.chapter} of the official xv6 book.`}>
-  <div class="reader-grid reader-grid--book">
-    <NavigationRail title="Book chapters" items={railItems} activeHref={chapterPath(entry.data.chapter)} />
+<BaseLayout title={entry.data.title} description={`xv6 book 第${chapter.chapter}章`} lang="ja" bookStyle>
+  <BookFrame chapters={toc} currentChapter={chapter.chapter} previous={previousChapter && { href: chapterPath(previousChapter.chapter), label: `第${previousChapter.chapter}章 ${previousChapter.title}` }} next={next}>
+    <article class="book-reader">
+    <header class="book-heading">
+      <p>{chapter.chapter === 0 ? '序文' : `Chapter ${chapter.chapter}`}</p>
+      <h1>{chapter.title}</h1>
+    </header>
 
-    <article class="reader-main">
-      <header class="article-header">
-        <p class="article-kicker">Chapter {String(entry.data.chapter).padStart(2, '0')}</p>
-        <h1>{entry.data.title}</h1>
-        <p>xv6: a simple, Unix-like teaching operating system</p>
-      </header>
+    <div class="prose book-prose" set:html={chapter.sections[0].html} />
 
-      <details class="mobile-chapter-nav">
-        <summary>Book chapters</summary>
-        <ol>{railItems.map((item) => <li><a href={item.href} aria-current={item.href === chapterPath(entry.data.chapter) ? 'page' : undefined}><span>{item.number}</span><span>{item.label}</span></a></li>)}</ol>
-      </details>
-      <ArticleToc items={outline} />
-      <div class="prose"><Content /></div>
-      <SourceMeta source="mit-pdos/xv6-riscv-book" sourceUrl={`${repository}/tree/${entry.data.commit}`} commit={entry.data.commit} />
-
-      <nav class="page-turner" aria-label="Adjacent chapters">
-        <span>{previous && <a href={chapterPath(previous.data.chapter)}><span>Previous chapter</span><strong>{previous.data.title}</strong></a>}</span>
-        <span>{next && <a href={chapterPath(next.data.chapter)}><span>Next chapter</span><strong>{next.data.title}</strong></a>}</span>
+    {firstSection && (
+      <nav class="book-section-list" aria-label="この章の節">
+        <h2>この章の内容</h2>
+        <ol>
+          {chapter.sections.slice(1).map((section) => (
+            <li><a href={sectionPath(chapter.chapter, section.number)}><span>{chapter.chapter}.{section.number}</span><span>{section.title}</span></a></li>
+          ))}
+        </ol>
       </nav>
-    </article>
+    )}
 
-    <div class="reader-toc-column"><ArticleToc items={outline} /></div>
-  </div>
+    <p class="book-source"><a href={`https://github.com/mit-pdos/xv6-riscv-book/tree/${entry.data.commit}`}>原典: xv6-riscv-book</a></p>
+    </article>
+  </BookFrame>
 </BaseLayout>

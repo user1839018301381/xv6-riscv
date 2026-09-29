@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { load } from 'cheerio';
-import { BOOK_CONTENT_DIR, BOOK_JA_CONTENT_DIR, LAB_JA_PROCESSED_DIR, LAB_PROCESSED_DIR, PROJECT_ROOT, chapterPath } from './lib/config.ts';
+import { BOOK_CONTENT_DIR, BOOK_JA_CONTENT_DIR, LAB_JA_PROCESSED_DIR, LAB_PROCESSED_DIR, PROJECT_ROOT, chapterPath, sectionPath } from './lib/config.ts';
 import { restoreLabCodeHeadings, restoreLabTitle } from './lib/ja-code.ts';
 import type { ProcessedLab, SearchRecord } from './lib/types.ts';
 
@@ -68,6 +68,8 @@ function bookRecords(markdown: string, fileName: string): SearchRecord[] {
   let anchor = '';
   let buffer: string[] = [];
   let index = 0;
+  let sectionNumber = 0;
+  let sectionUrl = chapterPath(chapter);
 
   const flush = () => {
     const text = compactText(buffer.join(' ').replace(/<[^>]+>/g, ' ').replace(/[`*_>#|]/g, ' '));
@@ -78,7 +80,7 @@ function bookRecords(markdown: string, fileName: string): SearchRecord[] {
       collection: `Chapter ${chapter}`,
       title,
       section,
-      url: `${chapterPath(chapter)}${anchor ? `#${anchor}` : ''}`,
+      url: `${sectionUrl}${anchor ? `#${anchor}` : ''}`,
       text,
       tokens: tokens(`chapter ${chapter} ${title} ${section} ${text}`)
     });
@@ -94,7 +96,12 @@ function bookRecords(markdown: string, fileName: string): SearchRecord[] {
     const headingMatch = line.match(/^#{2,3}\s+(.+)$/);
     if (headingMatch) {
       flush();
+      if (line.startsWith('## ')) {
+        sectionNumber += 1;
+        sectionUrl = sectionPath(chapter, sectionNumber);
+      }
       section = compactText(headingMatch[1]);
+      anchor = '';
       continue;
     }
     buffer.push(line);

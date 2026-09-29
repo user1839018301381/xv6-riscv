@@ -79,7 +79,7 @@ int             pipewrite(struct pipe *pipe, uint64 source_address, int byte_cou
 
 // printk.c（カーネル用表示・異常終了処理）
 int             printk(char *format, ...) __attribute__ ((format (printf, 1, 2)));
-void            panic(char *message) 2((noreturn));
+void            panic(char *message) __attribute__((noreturn));
 void            printkinit(void);
 
 // proc.c（プロセス管理）

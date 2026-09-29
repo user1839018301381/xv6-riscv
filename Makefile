@@ -198,6 +198,48 @@ check-qemu-version:
 		exit 1; \
 	fi
 
-.PHONY: fmt
+# 便利エイリアス: make kernel / make mkfs
+kernel: $K/kernel
+mkfs: mkfs/mkfs
+
+test: ## xv6 の全テストを実行する
+	./test-xv6.py usertests
+	./test-xv6.py crash
+
+test-exec: ## exec のテストを実行する
+	./test-xv6.py exectest
+	./test-xv6.py bigargtest
+	./test-xv6.py execout
+
+# xv6 Reader (Astro 静的サイト)
+DOCS_PORT ?= 4321
+docs: ## Reader を起動してブラウザで開く (http://localhost:4321)
+	@if [ ! -d node_modules ]; then echo "Installing dependencies..."; npm install; fi
+	npm run dev -- --port $(DOCS_PORT) --open
+
+.PHONY: help fmt docs kernel mkfs test test-exec tags clean qemu qemu-gdb print-gdbport check-qemu-version
+help: ## 利用可能なターゲットと変数の一覧を表示する
+	@echo "Usage: make [target] [VAR=value]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  qemu               QEMU で xv6 を起動する"
+	@echo "  qemu-gdb           GDB 接続待ちで QEMU を起動する (別窓で gdb)"
+	@echo "  kernel             カーネル ($K/kernel) をビルドする"
+	@echo "  fs.img             ファイルシステムイメージをビルドする"
+	@echo "  mkfs               ホスト用 mkfs/mkfs をビルドする"
+	@echo "  test               xv6 の全テストを実行する"
+	@echo "  test-exec          exec のテストを実行する"
+	@echo "  tags               kernel の etags を生成する"
+	@echo "  clean              ビルド成果物を削除する"
+	@echo "  fmt                clang-format で整形する"
+	@echo "  docs               xv6 Reader を起動してブラウザで開く"
+	@echo "  print-gdbport      GDB 用ポート番号を表示する"
+	@echo "  help               このヘルプを表示する"
+	@echo ""
+	@echo "Variables:"
+	@echo "  TOOLPREFIX=...    RISC-V ツールチェイン接頭辞 (未設定なら自動検出)"
+	@echo "  CPUS=N            QEMU の CPU 数 (既定: 3)"
+	@echo "  QEMU=...          QEMU バイナリ (既定: qemu-system-riscv64)"
+	@echo "  DOCS_PORT=N       Reader のポート (既定: 4321)"
 fmt:
 	clang-format -i $(wildcard kernel/*.[ch] user/*.[ch] mkfs/*.c)

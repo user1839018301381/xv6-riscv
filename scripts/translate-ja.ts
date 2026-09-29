@@ -22,6 +22,7 @@ import {
   LABS,
   PROJECT_ROOT
 } from './lib/config.ts';
+import { polishJapaneseProse } from './lib/ja-prose.ts';
 
 const session = process.env.AGENT_BROWSER_SESSION;
 if (!session) throw new Error('AGENT_BROWSER_SESSION is required. Open Google Translate in the named agent-browser session first.');
@@ -328,7 +329,7 @@ async function translateBookFile(markdown: string): Promise<string> {
 }
 
 function cleanJapanese(value: string): string {
-  return value.replace(/Chapter(?:Â|\u00a0)?\s*(?=\[)/g, '第');
+  return polishJapaneseProse(value);
 }
 
 async function translateLabFile(input: string): Promise<string> {

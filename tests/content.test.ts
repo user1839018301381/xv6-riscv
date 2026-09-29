@@ -113,4 +113,5 @@ test('the generated search index covers Labs and Book sections', async () => {
   assert.ok(index.records.length >= 150);
   assert.ok(index.records.some((record) => record.kind === 'Lab' && record.url.startsWith('/labs/')));
   assert.ok(index.records.some((record) => record.kind === 'Book' && record.url.startsWith('/book/chapter-')));
+  assert.ok(index.records.some((record) => record.kind === 'Book' && record.url === '/book/chapter-2/section-1/'));
 });
